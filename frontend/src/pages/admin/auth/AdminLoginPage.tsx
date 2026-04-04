@@ -57,6 +57,8 @@ export default function AdminLoginPage() {
           </div>
         )}
 
+        <div className="admin-auth-divider" />
+
         <form onSubmit={handleSubmit} className="auth-form">
           {/* Email */}
           <div className="auth-field">

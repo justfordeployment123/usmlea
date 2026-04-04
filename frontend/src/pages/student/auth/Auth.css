@@ -8,7 +8,7 @@
 /* ─── Left Blue Panel ─────────────────────────────────────── */
 .auth-left {
   flex: 0 0 45%;
-  background: linear-gradient(145deg, #1A6FAD 0%, #104C79 100%);
+  background: linear-gradient(145deg, var(--color-primary) 0%, var(--color-navy) 100%);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -232,7 +232,6 @@
   color: var(--color-text-primary);
   background: var(--color-surface);
   transition: border-color var(--transition-fast), box-shadow var(--transition-fast), background var(--transition-fast);
-  outline: none;
 }
 
 .auth-input::placeholder {
@@ -294,15 +293,13 @@
 }
 
 .auth-btn--primary {
-  background: linear-gradient(135deg, #1A6FAD, #358ECC);
+  background: linear-gradient(135deg, var(--color-primary), var(--color-primary-light));
   color: var(--color-white);
   box-shadow: 0 4px 16px rgba(26,111,173,0.35);
-  border: none;
-  cursor: pointer;
 }
 
 .auth-btn--primary:hover:not(:disabled) {
-  background: linear-gradient(135deg, #104C79, #1A6FAD);
+  background: linear-gradient(135deg, var(--color-navy), var(--color-primary));
   box-shadow: 0 6px 24px rgba(26,111,173,0.45);
   transform: translateY(-1px);
 }

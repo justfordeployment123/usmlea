@@ -1,0 +1,274 @@
+/* ─── Dashboard Styles ───────────────────────────────── */
+
+.dashboard-container {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: var(--space-8);
+}
+
+/* Welcome Bar */
+.welcome-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-8);
+  animation: fadeIn 0.3s ease;
+}
+
+.welcome-greeting {
+  font-size: var(--text-3xl);
+  color: var(--color-navy);
+  margin-bottom: var(--space-1);
+}
+
+.welcome-subtitle {
+  color: var(--color-text-secondary);
+  font-size: var(--text-base);
+}
+
+.exam-badge {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-6);
+  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-navy) 100%);
+  border-radius: var(--radius-lg);
+  color: white;
+  box-shadow: var(--shadow-sm);
+}
+
+.exam-icon {
+  font-size: var(--text-2xl);
+}
+
+.exam-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.exam-name {
+  font-weight: 700;
+  font-size: var(--text-sm);
+  opacity: 0.9;
+}
+
+.exam-days {
+  font-size: var(--text-lg);
+  font-weight: 700;
+}
+
+/* Stats Card - Simple UWorld Style */
+.stats-card {
+  background: var(--color-white);
+  border-radius: var(--radius-lg);
+  padding: var(--space-8);
+  box-shadow: var(--shadow-md);
+  animation: fadeIn 0.4s ease 0.2s both;
+}
+
+.stats-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-8);
+}
+
+.stats-title {
+  font-size: var(--text-2xl);
+  color: var(--color-navy);
+  font-weight: 700;
+}
+
+.stats-updated {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.stats-link {
+  color: var(--color-primary);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  transition: color var(--transition-fast);
+}
+
+.stats-link:hover {
+  color: var(--color-navy);
+}
+
+/* Donut Section */
+.donuts-section {
+  display: flex;
+  gap: var(--space-12);
+  justify-content: center;
+  margin-bottom: var(--space-10);
+  padding: var(--space-8) 0;
+}
+
+/* Stats Tables Section */
+.stats-tables {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--space-8);
+}
+
+.stats-table {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.stats-table-title {
+  font-weight: 700;
+  color: var(--color-navy);
+  font-size: var(--text-base);
+  margin-bottom: var(--space-2);
+  padding-bottom: var(--space-2);
+  border-bottom: 2px solid var(--color-primary);
+}
+
+.stats-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--space-3) 0;
+}
+
+.stats-row:not(:last-child) {
+  border-bottom: 1px solid var(--color-border-light);
+}
+
+.stats-label {
+  color: var(--color-text-secondary);
+  font-size: var(--text-sm);
+}
+
+.stats-value {
+  font-weight: 700;
+  color: var(--color-navy);
+  font-size: var(--text-base);
+}
+
+.stats-divider {
+  height: 1px;
+  background: var(--color-border);
+  margin: var(--space-4) 0;
+}
+
+/* Donut Chart Styles */
+.donut-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.donut-center {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  z-index: 10;
+  pointer-events: none;
+}
+
+.donut-value {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--color-navy);
+  line-height: 1;
+  margin-bottom: 4px;
+}
+
+.donut-label {
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  font-weight: 500;
+}
+
+/* Existing component styles remain (DonutRing, etc.) */
+.dash-card {
+  background: var(--color-white);
+  border-radius: var(--radius-md);
+  padding: var(--space-6);
+  box-shadow: var(--shadow-sm);
+  transition: all var(--transition-fast);
+}
+
+.dash-card:hover {
+  box-shadow: var(--shadow-md);
+  transform: translateY(-2px);
+}
+
+.dash-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-4);
+}
+
+.dash-card__title {
+  font-size: var(--text-lg);
+  font-weight: 700;
+  color: var(--color-navy);
+}
+
+.dash-link {
+  color: var(--color-primary);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  transition: color var(--transition-fast);
+}
+
+.dash-link:hover {
+  color: var(--color-navy);
+}
+
+/* Responsive */
+@media (max-width: 1024px) {
+  .stats-tables {
+    grid-template-columns: 1fr;
+  }
+
+  .donuts-section {
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-8);
+  }
+}
+
+@media (max-width: 768px) {
+  .dashboard-container {
+    padding: var(--space-4);
+  }
+
+  .welcome-bar {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-4);
+  }
+
+  .welcome-greeting {
+    font-size: var(--text-2xl);
+  }
+
+  .stats-card {
+    padding: var(--space-6);
+  }
+
+  .stats-title {
+    font-size: var(--text-xl);
+  }
+}
