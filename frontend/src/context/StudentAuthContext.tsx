@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import React, { createContext, useContext, useState } from 'react'
 
 interface StudentUser {
@@ -24,8 +25,9 @@ export const StudentAuthProvider: React.FC<{ children: React.ReactNode }> = ({ c
     return stored ? JSON.parse(stored) : null
   })
 
-  const login = (email: string, _password: string): boolean => {
+  const login = (email: string, password: string): boolean => {
     // Demo: any non-empty credentials work; preset demo account
+    void password
     if (!email.trim()) return false
     const stored = localStorage.getItem('studentUser')
     if (stored) {

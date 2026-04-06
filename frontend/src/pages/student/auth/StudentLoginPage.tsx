@@ -47,7 +47,7 @@ export default function StudentLoginPage() {
             AI-powered preparation for USMLE Step 1. Adaptive learning, real-time analytics, and personalized roadmaps — built around you.
           </p>
           <div className="auth-left__features">
-            {['Personalized study roadmap', 'AI-driven question bank', 'Deep-link video references', 'Real-time performance analytics'].map(f => (
+            {['Personalized study roadmap', 'AI-driven create test flow', 'Deep-link video references', 'Real-time performance analytics'].map(f => (
               <div className="auth-left__feature" key={f}>
                 <span className="auth-left__feature-dot" />
                 {f}

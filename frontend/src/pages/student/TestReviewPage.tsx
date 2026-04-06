@@ -24,7 +24,7 @@ export default function TestReviewPage() {
     <div className="test-review-page animate-fade-in">
       <div className="page-header">
         <Link to="/student/qbank" className="back-link">
-          <ArrowLeft size={16} /> Back to Question Bank
+          <ArrowLeft size={16} /> Back to Create Test
         </Link>
         <h1>Test Review</h1>
       </div>

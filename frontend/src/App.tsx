@@ -18,6 +18,7 @@ import AiTutorPage         from './pages/student/AiTutorPage'
 import AnalyticsPage       from './pages/student/AnalyticsPage'
 import LeaderboardPage     from './pages/student/LeaderboardPage'
 import StudyPartnersPage   from './pages/student/StudyPartnersPage'
+import NotesPage           from './pages/student/NotesPage'
 import AdminLoginPage      from './pages/admin/auth/AdminLoginPage'
 
 // Placeholders for pages not yet built
@@ -58,7 +59,7 @@ export default function App() {
                 <Route path="/student/analytics"  element={<AnalyticsPage />} />
                 <Route path="/student/leaderboard" element={<LeaderboardPage />} />
                 <Route path="/student/partners"   element={<StudyPartnersPage />} />
-                <Route path="/student/notes"      element={<Placeholder label="Notes" />} />
+                <Route path="/student/notes"      element={<NotesPage />} />
               </Route>
             </Route>
 

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { NavLink, useNavigate, Outlet } from 'react-router-dom'
 import {
   LayoutDashboard, Map, BookOpen, Bot, Library,
@@ -12,7 +12,7 @@ import './StudentLayout.css'
 const NAV_ITEMS = [
   { to: '/student/dashboard',   icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/student/roadmap',     icon: Map,             label: 'My Roadmap' },
-  { to: '/student/qbank',       icon: BookOpen,        label: 'Question Bank' },
+  { to: '/student/qbank',       icon: BookOpen,        label: 'Create Test' },
   { to: '/student/ai-tutor',    icon: Bot,             label: 'AI Tutor' },
   { to: '/student/content',     icon: Library,         label: 'Content Hub' },
   { to: '/student/analytics',   icon: BarChart2,       label: 'Analytics' },
@@ -33,9 +33,6 @@ export default function StudentLayout() {
     : 'ST'
 
   const handleLogout = () => { logout(); navigate('/student/login') }
-
-  // Close mobile nav on route change
-  useEffect(() => { setMobileOpen(false) }, [])
 
   return (
     <div className={`sl-root ${collapsed ? 'sl-root--collapsed' : ''} ${mobileOpen ? 'sl-root--mobile-open' : ''}`}>
