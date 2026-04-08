@@ -41,15 +41,17 @@ export default function AdminDashboardPage() {
           <h3>Daily Active Users (7-Day)</h3>
           <p>Tracks usage momentum and engagement volatility.</p>
           <div className="admin-chart-wrap">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={DAILY_ACTIVE_USERS}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e6eef7" />
-                <XAxis dataKey="day" tick={{ fill: '#5f7fa2', fontSize: 12 }} />
-                <YAxis tick={{ fill: '#5f7fa2', fontSize: 12 }} />
-                <Tooltip />
-                <Line type="monotone" dataKey="users" stroke="#1a6fad" strokeWidth={3} dot={{ r: 4 }} />
-              </LineChart>
-            </ResponsiveContainer>
+            <div className="admin-chart-canvas">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={DAILY_ACTIVE_USERS}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e6eef7" />
+                  <XAxis dataKey="day" tick={{ fill: '#5f7fa2', fontSize: 12 }} />
+                  <YAxis tick={{ fill: '#5f7fa2', fontSize: 12 }} />
+                  <Tooltip />
+                  <Line type="monotone" dataKey="users" stroke="#1a6fad" strokeWidth={3} dot={{ r: 4 }} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
           </div>
         </article>
 
@@ -71,15 +73,17 @@ export default function AdminDashboardPage() {
           <h3>Score Distribution</h3>
           <p>Current spread of student performance buckets.</p>
           <div className="admin-chart-wrap">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={SCORE_DISTRIBUTION}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e6eef7" />
-                <XAxis dataKey="bucket" tick={{ fill: '#5f7fa2', fontSize: 12 }} />
-                <YAxis tick={{ fill: '#5f7fa2', fontSize: 12 }} />
-                <Tooltip />
-                <Bar dataKey="count" fill="#1a6fad" radius={[8, 8, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+            <div className="admin-chart-canvas">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={SCORE_DISTRIBUTION}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e6eef7" />
+                  <XAxis dataKey="bucket" tick={{ fill: '#5f7fa2', fontSize: 12 }} />
+                  <YAxis tick={{ fill: '#5f7fa2', fontSize: 12 }} />
+                  <Tooltip />
+                  <Bar dataKey="count" fill="#1a6fad" radius={[8, 8, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
           </div>
         </article>
 

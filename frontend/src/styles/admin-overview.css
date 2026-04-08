@@ -83,6 +83,11 @@
   height: 220px;
 }
 
+.admin-chart-canvas {
+  width: 100%;
+  height: 100%;
+}
+
 .admin-risk-table-wrap {
   overflow-x: auto;
 }
@@ -209,6 +214,13 @@
 
   .admin-chart-wrap {
     height: 210px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .admin-chart-canvas {
+    min-width: 560px;
   }
 
   .admin-risk-table {
@@ -236,6 +248,10 @@
 
   .admin-chart-wrap {
     height: 190px;
+  }
+
+  .admin-chart-canvas {
+    min-width: 520px;
   }
 
   .admin-risk-table {

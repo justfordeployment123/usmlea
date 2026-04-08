@@ -1,0 +1,381 @@
+.admin-students-page {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.admin-students-header h1 {
+  margin: 0;
+  color: #0d2d5e;
+  font-size: 1.55rem;
+}
+
+.admin-students-header p {
+  margin: 0.3rem 0 0;
+  color: #5a7a9d;
+}
+
+.admin-students-kpis {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.8rem;
+}
+
+.admin-students-kpi {
+  background: #fff;
+  border: 1px solid #d8e9f8;
+  border-radius: 12px;
+  padding: 0.75rem;
+}
+
+.admin-students-kpi h4 {
+  margin: 0;
+  color: #5f7fa2;
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.admin-students-kpi p {
+  margin: 0.4rem 0 0;
+  color: #0d2d5e;
+  font-size: 1.45rem;
+  font-weight: 800;
+}
+
+.admin-students-filters {
+  display: grid;
+  grid-template-columns: 1.6fr repeat(4, minmax(0, 1fr));
+  gap: 0.6rem;
+  align-items: center;
+}
+
+.admin-students-filters select,
+.admin-students-input input,
+.admin-students-note-compose textarea {
+  border: 1px solid #d8e9f8;
+  border-radius: 10px;
+  background: #fff;
+  padding: 0.6rem 0.7rem;
+  font: inherit;
+  color: #17395f;
+}
+
+.admin-students-input {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  border: 1px solid #d8e9f8;
+  border-radius: 10px;
+  padding: 0 0.6rem;
+}
+
+.admin-students-input input {
+  border: none;
+  padding: 0.6rem 0;
+  width: 100%;
+  outline: none;
+}
+
+.admin-students-grid {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  gap: 1rem;
+  align-items: stretch;
+}
+
+.admin-students-table-card,
+.admin-students-detail-card {
+  min-height: 100%;
+  align-self: stretch;
+}
+
+.admin-students-table-card {
+  display: flex;
+  flex-direction: column;
+}
+
+.admin-students-table-card h3,
+.admin-students-detail-card h3 {
+  margin: 0;
+  color: #0d2d5e;
+}
+
+.admin-students-table-card > p {
+  margin: 0.35rem 0 0.75rem;
+  color: #5a7a9d;
+  font-size: 0.86rem;
+}
+
+.admin-students-table-wrap {
+  flex: 1;
+  min-height: 0;
+  overflow-x: auto;
+  border: 1px solid #e6f0f9;
+  border-radius: 12px;
+}
+
+.admin-students-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 760px;
+}
+
+.admin-students-table th,
+.admin-students-table td {
+  border-bottom: 1px solid #e7f0f9;
+  text-align: left;
+  padding: 0.62rem;
+  font-size: 0.83rem;
+  color: #17395f;
+}
+
+.admin-students-table th {
+  color: #5a7a9d;
+  background: #f7fbff;
+}
+
+.admin-students-table td strong {
+  display: block;
+  color: #0d2d5e;
+}
+
+.admin-students-table td span {
+  color: #6f8cab;
+  font-size: 0.75rem;
+}
+
+.admin-students-table tbody tr {
+  cursor: pointer;
+}
+
+.admin-students-table tbody tr:hover {
+  background: #f8fcff;
+}
+
+.admin-students-table tbody tr.selected {
+  background: #eef6ff;
+}
+
+.ops-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  border-radius: 999px;
+  padding: 0.2rem 0.45rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: capitalize;
+}
+
+.status-active { background: #ebfaf1; color: #1e9655; }
+.status-inactive { background: #f1f4f8; color: #546b87; }
+.status-suspended { background: #fff3f3; color: #cf4040; }
+.status-pending { background: #fff7ea; color: #b67211; }
+
+.risk-low { background: #ebfaf1; color: #1e9655; }
+.risk-medium { background: #fff7ea; color: #b67211; }
+.risk-high { background: #fff3e5; color: #c45b00; }
+.risk-critical { background: #fff0f0; color: #cf4040; }
+
+.admin-students-detail-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.admin-students-detail-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.8rem;
+  align-items: flex-start;
+}
+
+.admin-students-detail-header p {
+  margin: 0.26rem 0 0;
+  color: #5a7a9d;
+  font-size: 0.84rem;
+}
+
+.admin-students-meta {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.45rem;
+}
+
+.admin-students-meta span {
+  background: #f7fbff;
+  border: 1px solid #e3edf8;
+  border-radius: 10px;
+  padding: 0.45rem 0.55rem;
+  color: #315476;
+  font-size: 0.78rem;
+}
+
+.admin-students-progress-grid {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.admin-students-progress-grid label {
+  display: block;
+  color: #4c6f94;
+  font-size: 0.78rem;
+  margin-bottom: 0.2rem;
+}
+
+.ops-progress {
+  height: 8px;
+  border-radius: 999px;
+  background: #e7f0f9;
+  overflow: hidden;
+}
+
+.ops-progress span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #1a6fad, #52a5df);
+}
+
+.admin-students-actions h4,
+.admin-students-notes h4,
+.admin-students-interventions h4,
+.admin-students-activity h4 {
+  margin: 0;
+  color: #0d2d5e;
+  font-size: 0.9rem;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.admin-students-actions-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-top: 0.55rem;
+}
+
+.admin-students-actions-row button,
+.admin-students-note-compose button {
+  border: 1px solid #c7ddf2;
+  border-radius: 9px;
+  background: #eff7ff;
+  color: #1a6fad;
+  font-weight: 700;
+  font-size: 0.78rem;
+  padding: 0.45rem 0.65rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.admin-students-notice {
+  margin: 0.5rem 0 0;
+  color: #1a6fad;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.admin-students-note-compose {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.45rem;
+  margin-top: 0.45rem;
+}
+
+.admin-students-note-compose textarea {
+  min-height: 68px;
+  resize: vertical;
+}
+
+.admin-students-note-list,
+.admin-students-intervention-list,
+.admin-students-activity-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  margin-top: 0.5rem;
+}
+
+.admin-students-note-list article,
+.admin-students-intervention-list article,
+.admin-students-activity-list article {
+  border: 1px solid #e3edf8;
+  background: #fafdff;
+  border-radius: 10px;
+  padding: 0.52rem 0.58rem;
+}
+
+.admin-students-note-list p,
+.admin-students-intervention-list p,
+.admin-students-activity-list p {
+  margin: 0;
+  color: #234568;
+  font-size: 0.82rem;
+}
+
+.admin-students-note-list span,
+.admin-students-intervention-list span,
+.admin-students-activity-list span {
+  display: block;
+  margin-top: 0.24rem;
+  color: #6f8cab;
+  font-size: 0.74rem;
+}
+
+.admin-students-empty,
+.admin-students-empty-inline {
+  color: #6f8cab;
+  font-size: 0.84rem;
+}
+
+.admin-students-empty {
+  padding: 0.7rem;
+}
+
+@media (max-width: 1200px) {
+  .admin-students-kpis {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .admin-students-filters {
+    grid-template-columns: 1fr 1fr 1fr;
+  }
+
+  .admin-students-input {
+    grid-column: 1 / -1;
+  }
+
+  .admin-students-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 760px) {
+  .admin-students-kpis {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .admin-students-filters {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-students-meta {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-students-note-compose {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 480px) {
+  .admin-students-header h1 {
+    font-size: 1.3rem;
+  }
+
+  .admin-students-kpis {
+    grid-template-columns: 1fr;
+  }
+}
