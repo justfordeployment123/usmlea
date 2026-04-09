@@ -1,0 +1,259 @@
+.admin-metrics-page,
+.admin-financials-page {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.admin-metrics-header h1 {
+  margin: 0;
+  color: #0d2d5e;
+  font-size: 1.55rem;
+}
+
+.admin-metrics-header p {
+  margin: 0.3rem 0 0;
+  color: #5a7a9d;
+}
+
+.admin-metrics-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  flex-wrap: wrap;
+}
+
+.admin-metrics-controls label {
+  color: #4f7093;
+  font-weight: 700;
+  font-size: 0.82rem;
+}
+
+.admin-metrics-controls select {
+  border: 1px solid #d8e9f8;
+  border-radius: 9px;
+  background: #fff;
+  padding: 0.42rem 0.58rem;
+  color: #17395f;
+  font: inherit;
+}
+
+.admin-metrics-controls__hint {
+  color: #6f8cab;
+  font-size: 0.78rem;
+}
+
+.admin-metrics-kpis,
+.admin-financials-kpis {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.admin-metrics-kpis {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.admin-financials-kpis {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.admin-metrics-kpi,
+.admin-financials-kpi {
+  background: #fff;
+  border: 1px solid #d8e9f8;
+  border-radius: 12px;
+  padding: 0.8rem;
+}
+
+.admin-metrics-kpi h4,
+.admin-financials-kpi h4 {
+  margin: 0;
+  color: #5f7fa2;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.admin-metrics-kpi .value,
+.admin-financials-kpi .value {
+  margin: 0.42rem 0 0;
+  color: #0d2d5e;
+  font-size: 1.32rem;
+  font-weight: 800;
+}
+
+.admin-metrics-kpi .delta,
+.admin-financials-kpi .delta {
+  margin: 0.25rem 0 0;
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.delta.up { color: #1d9b57; }
+.delta.down { color: #d64545; }
+.delta.neutral { color: #5f7fa2; }
+
+.admin-metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.admin-metrics-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.admin-metrics-panel h3 {
+  margin: 0;
+  color: #0d2d5e;
+  font-size: 1rem;
+}
+
+.admin-metrics-panel > p {
+  margin: 0;
+  color: #5a7a9d;
+  font-size: 0.84rem;
+}
+
+.admin-metrics-chart-wrap {
+  height: 250px;
+}
+
+.admin-metrics-chart-canvas {
+  width: 100%;
+  height: 100%;
+}
+
+.admin-metrics-legend {
+  display: flex;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+}
+
+.admin-metrics-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: #f4f9ff;
+  border-radius: 999px;
+  padding: 0.2rem 0.5rem;
+  color: #2f5477;
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+
+.admin-metrics-legend i {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.admin-metrics-table-wrap {
+  overflow-x: auto;
+  border: 1px solid #e6f0f9;
+  border-radius: 12px;
+}
+
+.admin-metrics-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 540px;
+}
+
+.admin-metrics-table th,
+.admin-metrics-table td {
+  border-bottom: 1px solid #e7f0f9;
+  text-align: left;
+  padding: 0.58rem;
+  font-size: 0.82rem;
+  color: #17395f;
+}
+
+.admin-metrics-table th {
+  color: #5a7a9d;
+  background: #f7fbff;
+}
+
+.admin-financials-invoices {
+  grid-column: 1 / -1;
+}
+
+.admin-financials-status {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0.2rem 0.45rem;
+  text-transform: capitalize;
+  font-weight: 700;
+  font-size: 0.72rem;
+}
+
+.admin-financials-status.paid {
+  background: #ebfaf1;
+  color: #1e9655;
+}
+
+.admin-financials-status.failed {
+  background: #fff0f0;
+  color: #cf4040;
+}
+
+.admin-financials-status.refunded {
+  background: #eef6ff;
+  color: #1a6fad;
+}
+
+@media (max-width: 1280px) {
+  .admin-metrics-kpis {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .admin-financials-kpis {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 980px) {
+  .admin-metrics-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 760px) {
+  .admin-metrics-kpis,
+  .admin-financials-kpis {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .admin-metrics-chart-wrap {
+    height: 220px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .admin-metrics-chart-canvas {
+    min-width: 560px;
+  }
+}
+
+@media (max-width: 520px) {
+  .admin-metrics-header h1 {
+    font-size: 1.3rem;
+  }
+
+  .admin-metrics-kpis,
+  .admin-financials-kpis {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-metrics-chart-wrap {
+    height: 205px;
+  }
+
+  .admin-metrics-chart-canvas {
+    min-width: 520px;
+  }
+}

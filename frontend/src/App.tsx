@@ -20,6 +20,7 @@ import AnalyticsPage       from './pages/student/AnalyticsPage'
 import LeaderboardPage     from './pages/student/LeaderboardPage'
 import StudyPartnersPage   from './pages/student/StudyPartnersPage'
 import NotesPage           from './pages/student/NotesPage'
+import CommentsPage        from './pages/student/CommentsPage'
 import AdminLoginPage      from './pages/admin/auth/AdminLoginPage'
 import AdminDashboardPage  from './pages/admin/AdminDashboardPage'
 import AdminStudentsPage   from './pages/admin/AdminStudentsPage'
@@ -54,6 +55,7 @@ export default function App() {
                 <Route path="/student/test-review"  element={<TestReviewPage />} />
                 <Route path="/student/ai-tutor"   element={<AiTutorPage />} />
                 <Route path="/student/content"    element={<ContentHubPage />} />
+                <Route path="/student/comments"   element={<CommentsPage />} />
                 <Route path="/student/analytics"  element={<AnalyticsPage />} />
                 <Route path="/student/leaderboard" element={<LeaderboardPage />} />
                 <Route path="/student/partners"   element={<StudyPartnersPage />} />
