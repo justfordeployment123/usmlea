@@ -5,6 +5,7 @@ import { useStudentAuth } from '../../context/StudentAuthContext'
 import { getOnboardingData } from '../../data/onboarding'
 import { hardcodedRoadmap, getRoadmapSummary } from '../../data/roadmap'
 import { getDaysUntilExam } from '../../data/dashboard'
+import TimelineAdjuster from '../../components/student/create-test/TimelineAdjuster'
 import './Roadmap.css'
 
 export default function RoadmapPreviewPage() {
@@ -63,6 +64,10 @@ export default function RoadmapPreviewPage() {
               {onboardingData?.hoursPerDay || 4} hours/day
             </div>
           </div>
+        </div>
+
+        <div className="roadmap-velocity-section">
+          <TimelineAdjuster />
         </div>
 
         {/* Timeline */}

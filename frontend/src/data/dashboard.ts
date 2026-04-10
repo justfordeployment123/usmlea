@@ -4,7 +4,7 @@ export interface TestHistoryItem {
   id: string
   subject: string
   score: number
-  mode: 'Tutor' | 'Timed' | 'Mock Exam'
+  mode: 'Timed' | 'Mock Exam'
   date: string
   questionsCount: number
   durationMins: number
@@ -89,9 +89,9 @@ export const studentDashboardData: StudentDashboardData = {
   ],
   todaySessionsCompleted: 2,
   recentTests: [
-    { id: 't1', subject: 'Pathology', score: 78, mode: 'Tutor', date: 'Apr 3', questionsCount: 40, durationMins: 38 },
+    { id: 't1', subject: 'Pathology', score: 78, mode: 'Timed', date: 'Apr 3', questionsCount: 40, durationMins: 38 },
     { id: 't2', subject: 'Mixed', score: 65, mode: 'Timed', date: 'Apr 1', questionsCount: 80, durationMins: 110 },
-    { id: 't3', subject: 'Pharmacology', score: 82, mode: 'Tutor', date: 'Mar 30', questionsCount: 30, durationMins: 28 },
+    { id: 't3', subject: 'Pharmacology', score: 82, mode: 'Timed', date: 'Mar 30', questionsCount: 30, durationMins: 28 },
   ],
 }
 

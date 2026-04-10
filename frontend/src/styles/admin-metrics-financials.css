@@ -43,6 +43,75 @@
   font-size: 0.78rem;
 }
 
+.admin-metrics-taxonomy h3,
+.admin-metrics-ai-insight h3 {
+  margin: 0;
+  color: #0d2d5e;
+  font-size: 0.95rem;
+}
+
+.admin-metrics-taxonomy {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.taxonomy-filter {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.65rem;
+}
+
+.taxonomy-filter__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.taxonomy-filter__field label {
+  color: #4f7093;
+  font-weight: 700;
+  font-size: 0.78rem;
+}
+
+.taxonomy-filter__field select {
+  border: 1px solid #d8e9f8;
+  border-radius: 9px;
+  background: #fff;
+  padding: 0.42rem 0.58rem;
+  color: #17395f;
+  font: inherit;
+}
+
+.admin-metrics-ai-insight {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.admin-metrics-ai-insight p {
+  margin: 0;
+  color: #5a7a9d;
+  font-size: 0.82rem;
+}
+
+.admin-metrics-ai-insight__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.admin-metrics-ai-insight__chips span {
+  display: inline-flex;
+  align-items: center;
+  background: #f4f9ff;
+  border-radius: 999px;
+  padding: 0.28rem 0.6rem;
+  color: #2f5477;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
 .admin-metrics-kpis,
 .admin-financials-kpis {
   display: grid;
@@ -226,6 +295,10 @@
 }
 
 @media (max-width: 760px) {
+  .taxonomy-filter {
+    grid-template-columns: 1fr;
+  }
+
   .admin-metrics-kpis,
   .admin-financials-kpis {
     grid-template-columns: 1fr 1fr;

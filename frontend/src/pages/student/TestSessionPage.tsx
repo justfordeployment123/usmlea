@@ -1,10 +1,11 @@
 import { useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { ArrowRight } from 'lucide-react'
 import QuestionHeader from '../../components/student/test-session/QuestionHeader'
 import QuestionBody from '../../components/student/test-session/QuestionBody'
-import TutorExplanationDrawer from '../../components/student/test-session/TutorExplanationDrawer'
 import { QUESTIONS } from '../../data/questions'
+import { mockRoadmapContext, type TestBlueprint } from '../../data/createTest'
+import { captureException } from '../../services/observability'
 import '../../styles/test-session.css'
 
 type SubmittedAnswer = {
@@ -12,69 +13,152 @@ type SubmittedAnswer = {
   selectedChoiceId: string
 }
 
+type SubmittedQuestionResult = {
+  questionId: string
+  examId: string
+  subjectId: string
+  topicId: string
+  testType: TestBlueprint['testType']
+  selectedChoiceId: string
+  isCorrect: boolean
+  durationSec: number
+}
+
+interface SessionLocationState {
+  testBlueprint?: TestBlueprint
+}
+
+const DEFAULT_BLUEPRINT: TestBlueprint = {
+  examId: mockRoadmapContext.examId,
+  examLabel: mockRoadmapContext.examLabel,
+  subjectId: mockRoadmapContext.subjectId,
+  subjectLabel: mockRoadmapContext.subjectLabel,
+  topicId: mockRoadmapContext.topicId,
+  topicLabel: mockRoadmapContext.topicLabel,
+  questionCount: mockRoadmapContext.questionCount,
+  mode: mockRoadmapContext.mode,
+  testType: mockRoadmapContext.testType,
+}
+
 export default function TestSessionPage() {
+  const location = useLocation()
   const navigate = useNavigate()
+  const locationState = (location.state as SessionLocationState) || {}
+  const testBlueprint = locationState.testBlueprint ?? DEFAULT_BLUEPRINT
+
+  const scopedQuestions = useMemo(() => {
+    const strictTopicPool = QUESTIONS.filter(
+      question =>
+        question.examId === testBlueprint.examId &&
+        question.subjectId === testBlueprint.subjectId &&
+        question.topicId === testBlueprint.topicId,
+    )
+
+    if (strictTopicPool.length > 0) {
+      return strictTopicPool.slice(0, testBlueprint.questionCount)
+    }
+
+    const subjectPool = QUESTIONS.filter(
+      question =>
+        question.examId === testBlueprint.examId && question.subjectId === testBlueprint.subjectId,
+    )
+
+    if (subjectPool.length > 0) {
+      return subjectPool.slice(0, testBlueprint.questionCount)
+    }
+
+    const examPool = QUESTIONS.filter(question => question.examId === testBlueprint.examId)
+    return (examPool.length > 0 ? examPool : QUESTIONS).slice(0, testBlueprint.questionCount)
+  }, [testBlueprint])
+
   const [currentIndex, setCurrentIndex] = useState(0)
   const [selectedChoiceId, setSelectedChoiceId] = useState<string | null>(null)
-  const [revealedByQuestionId, setRevealedByQuestionId] = useState<Record<string, boolean>>({})
   const [answersByQuestionId, setAnswersByQuestionId] = useState<Record<string, string>>({})
+  const [submissionError, setSubmissionError] = useState<string | null>(null)
 
-  const currentQuestion = QUESTIONS[currentIndex]
-  const isAnswerRevealed = Boolean(revealedByQuestionId[currentQuestion.id])
+  const currentQuestion = scopedQuestions[currentIndex] ?? scopedQuestions[0]
 
-  const answeredCount = useMemo(() => Object.keys(answersByQuestionId).length, [answersByQuestionId])
+  if (!currentQuestion) {
+    return (
+      <div className="test-session-page">
+        <div className="card" style={{ marginTop: '2rem' }}>
+          <h2>No questions available</h2>
+          <p>Try changing exam scope in Create Test and start again.</p>
+        </div>
+      </div>
+    )
+  }
 
   const handleSelectChoice = (choiceId: string) => {
-    if (isAnswerRevealed) return
     setSelectedChoiceId(choiceId)
   }
 
   const handleNext = () => {
-    if (!selectedChoiceId && !isAnswerRevealed) return
+    if (!selectedChoiceId) return
 
-    if (!isAnswerRevealed && selectedChoiceId) {
-      setAnswersByQuestionId(prev => ({ ...prev, [currentQuestion.id]: selectedChoiceId }))
-      setRevealedByQuestionId(prev => ({ ...prev, [currentQuestion.id]: true }))
-      return
-    }
+    setAnswersByQuestionId(prev => ({ ...prev, [currentQuestion.id]: selectedChoiceId }))
 
-    if (currentIndex === QUESTIONS.length - 1) {
-      handleEndBlock()
+    if (currentIndex === scopedQuestions.length - 1) {
+      const updatedAnswers = { ...answersByQuestionId, [currentQuestion.id]: selectedChoiceId }
+      handleEndBlock(updatedAnswers)
       return
     }
 
     const nextIndex = currentIndex + 1
-    const nextQuestion = QUESTIONS[nextIndex]
+    const nextQuestion = scopedQuestions[nextIndex]
     setCurrentIndex(nextIndex)
     setSelectedChoiceId(answersByQuestionId[nextQuestion.id] ?? null)
   }
 
-  const handleEndBlock = () => {
-    const submittedAnswers: SubmittedAnswer[] = QUESTIONS.flatMap(question => {
-      const selected = answersByQuestionId[question.id]
-      return selected ? [{ questionId: question.id, selectedChoiceId: selected }] : []
-    })
+  const handleEndBlock = (finalAnswersByQuestionId = answersByQuestionId) => {
+    try {
+      setSubmissionError(null)
 
-    const correctCount = submittedAnswers.filter(answer => {
-      const question = QUESTIONS.find(q => q.id === answer.questionId)
-      return question?.correctAnswerId === answer.selectedChoiceId
-    }).length
+      const submittedAnswers: SubmittedAnswer[] = scopedQuestions.flatMap(question => {
+        const selected = finalAnswersByQuestionId[question.id]
+        return selected ? [{ questionId: question.id, selectedChoiceId: selected }] : []
+      })
 
-    navigate('/student/test-review', {
-      state: {
-        totalQuestions: QUESTIONS.length,
-        answeredCount,
-        correctCount,
-        answersByQuestionId,
-      },
-    })
+      const submittedQuestionResults: SubmittedQuestionResult[] = submittedAnswers.map(answer => {
+        const question = scopedQuestions.find(item => item.id === answer.questionId)
+        const isCorrect = question?.correctAnswerId === answer.selectedChoiceId
+        return {
+          questionId: answer.questionId,
+          examId: question?.examId ?? testBlueprint.examId,
+          subjectId: question?.subjectId ?? testBlueprint.subjectId,
+          topicId: question?.topicId ?? testBlueprint.topicId,
+          testType: testBlueprint.testType,
+          selectedChoiceId: answer.selectedChoiceId,
+          isCorrect: Boolean(isCorrect),
+          durationSec: 60,
+        }
+      })
+
+      const correctCount = submittedQuestionResults.filter(item => item.isCorrect).length
+
+      navigate('/student/test-review', {
+        state: {
+          totalQuestions: scopedQuestions.length,
+          answeredCount: Object.keys(finalAnswersByQuestionId).length,
+          correctCount,
+          testBlueprint,
+          questionIds: scopedQuestions.map(question => question.id),
+          submittedQuestionResults,
+          answersByQuestionId: finalAnswersByQuestionId,
+        },
+      })
+    } catch (error) {
+      setSubmissionError('Unable to finish this test right now. Please try again.')
+      captureException(error, { feature: 'test-session', action: 'handle-end-block' })
+    }
   }
 
   return (
     <div className="test-session-page">
       <QuestionHeader
         currentIndex={currentIndex}
-        totalQuestions={QUESTIONS.length}
+        totalQuestions={scopedQuestions.length}
+        mode={testBlueprint.mode}
         onEndBlock={handleEndBlock}
       />
 
@@ -83,18 +167,18 @@ export default function TestSessionPage() {
           question={currentQuestion}
           selectedChoiceId={selectedChoiceId}
           onSelectChoice={handleSelectChoice}
-          isAnswerRevealed={isAnswerRevealed}
+          isAnswerRevealed={false}
         />
 
-        <TutorExplanationDrawer question={currentQuestion} isOpen={isAnswerRevealed} />
+        {submissionError && (
+          <div className="card" style={{ margin: '0 1rem', color: '#b42318' }}>
+            {submissionError}
+          </div>
+        )}
 
         <div className="test-footer-actions">
           <button className="btn-next" onClick={handleNext}>
-            {isAnswerRevealed
-              ? currentIndex === QUESTIONS.length - 1
-                ? 'Finish Block'
-                : 'Next Question'
-              : 'Reveal Answer'}
+            {currentIndex === scopedQuestions.length - 1 ? 'Finish Block' : 'Next Question'}
             <ArrowRight size={18} />
           </button>
         </div>

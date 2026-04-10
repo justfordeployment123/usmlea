@@ -14,8 +14,8 @@ export default function TutorExplanationDrawer({ question, isOpen }: TutorExplan
       <div className="tutor-header">
         <div className="tutor-title"><Bot size={20} /> AI Tutor Explanation</div>
         <div className="tutor-tags">
-          <span className="subject-tag">{question.subject}</span>
-          <span className="topic-tag">{question.topic}</span>
+          <span className="subject-tag">{question.subjectLabel}</span>
+          <span className="topic-tag">{question.topicLabel}</span>
         </div>
       </div>
       

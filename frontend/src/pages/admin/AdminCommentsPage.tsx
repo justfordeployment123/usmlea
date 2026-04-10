@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Eye, EyeOff, Flag, MessageSquareMore, ShieldAlert } from 'lucide-react'
 import {
   ADMIN_MODERATION_COMMENTS,
@@ -28,15 +28,12 @@ export default function AdminCommentsPage() {
     })
   }, [comments, searchTerm, statusFilter])
 
-  useEffect(() => {
-    if (!filteredComments.some(comment => comment.id === selectedCommentId)) {
-      setSelectedCommentId(filteredComments[0]?.id ?? '')
-    }
-  }, [filteredComments, selectedCommentId])
+  const activeCommentId =
+    filteredComments.some(comment => comment.id === selectedCommentId) ? selectedCommentId : (filteredComments[0]?.id ?? '')
 
   const selectedComment = useMemo(
-    () => comments.find(comment => comment.id === selectedCommentId) ?? null,
-    [comments, selectedCommentId],
+    () => comments.find(comment => comment.id === activeCommentId) ?? null,
+    [comments, activeCommentId],
   )
 
   const moderationKpis = useMemo(() => {
@@ -143,7 +140,7 @@ export default function AdminCommentsPage() {
             {filteredComments.map(comment => (
               <article
                 key={comment.id}
-                className={`admin-comment-item ${comment.id === selectedCommentId ? 'selected' : ''}`}
+                className={`admin-comment-item ${comment.id === activeCommentId ? 'selected' : ''}`}
                 onClick={() => setSelectedCommentId(comment.id)}
               >
                 <header>

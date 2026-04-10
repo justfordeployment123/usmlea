@@ -43,7 +43,7 @@ Roadmap guides → Tests validate → Results adapt roadmap → Repeat
 
 When user opens Question Bank, system says:
 > "Based on today's roadmap: Pharmacology - CNS Drugs
-> 40 questions, Tutor mode"
+> 40 questions, Timed mode"
 
 **Why this matters:**
 - One click to start relevant practice ✓
@@ -54,23 +54,18 @@ When user opens Question Bank, system says:
 **User can always customize:**
 - Choose different subjects
 - Adjust question count
-- Switch modes (Tutor/Timed/Mock Exam)
+- Timed mode only (review at end)
 - Filter by weak areas only
 
 ---
 
-## 🧠 Test Modes
-
-### Tutor Mode (Learning)
-- Answer → Instant feedback
-- See explanation immediately
-- Video links + diagrams shown
-- Best for: New topics
+## 🧠 Test Mode
 
 ### Timed Mode (Practice)
 - 1.5 min/question
 - No instant feedback
 - Review all at end
+- Explanation text and video references appear only after submission/time expiry
 - Best for: Building speed
 
 ### Mock Exam Mode (Assessment)

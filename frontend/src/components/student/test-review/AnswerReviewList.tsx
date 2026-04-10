@@ -1,22 +1,23 @@
 import { useMemo, useState } from 'react'
-import { QUESTIONS } from '../../../data/questions'
+import type { MCQQuestion } from '../../../data/questions'
 import { Check, X } from 'lucide-react'
 
 interface AnswerReviewListProps {
   answersByQuestionId: Record<string, string>
+  questions: MCQQuestion[]
 }
 
-export default function AnswerReviewList({ answersByQuestionId }: AnswerReviewListProps) {
+export default function AnswerReviewList({ answersByQuestionId, questions }: AnswerReviewListProps) {
   const [openQuestionId, setOpenQuestionId] = useState<string | null>(null)
 
   const reviewRows = useMemo(
     () =>
-      QUESTIONS.map(question => {
+      questions.map(question => {
         const userChoice = answersByQuestionId[question.id] ?? '-'
         const isCorrect = userChoice === question.correctAnswerId
         return { question, userChoice, isCorrect }
       }),
-    [answersByQuestionId],
+    [answersByQuestionId, questions],
   )
   
   return (

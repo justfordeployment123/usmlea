@@ -447,8 +447,7 @@ Weak subjects picked in onboarding get extra `practice` days injected via `useRo
 
 **Left Panel — Test Builder:**
 - Test name input (optional)
-- Mode select cards: Tutor Mode | Timed Mode | Mock Exam
-  - Tutor: answers revealed after each question with explanation
+- Mode select cards: Timed Mode | Mock Exam
   - Timed: 1.5 min/question countdown, review at end
   - Mock Exam: 80 questions, full exam simulation
 - Subject checklist (grouped):
@@ -478,7 +477,7 @@ Weak subjects picked in onboarding get extra `practice` days injected via `useRo
 
 **Top Bar:**
 - "Q 1 of 40"
-- Timer (countdown for Timed, elapsed for Tutor)
+- Timer (countdown for Timed)
 - 🚩 Flag question (toggles flagged state for current Q)
 - "End Test" button → confirmation modal → routes to `/student/test-review`
 
@@ -490,18 +489,13 @@ Weak subjects picked in onboarding get extra `practice` days injected via `useRo
   - Hover: light blue tint
   - Selected: blue border + filled letter badge
 
-**Tutor Mode — Post-Answer Reveal:**
-- Correct choice: green background + ✅ icon
-- Chosen wrong choice: red background + ❌ icon
-- Explanation panel slides up (Framer Motion):
-  - "Why [A] is correct:" — text block
-  - "Why [B–E] are incorrect:" — expandable text blocks
-  - Deep-link chip: "🎥 Review: [Video Title] at [timestamp]" — clicking navigates to Content Hub video at that timestamp
-  - Diagram card: "🖼️ Related Diagram: [label]" — small dummy image placeholder
-  - "🤖 Ask AI Tutor more about this" → navigate to AI Tutor with pre-filled query
+**Timed Mode — End-of-Test Review:**
+- No immediate correctness reveal inside active session
+- Explanations and references are shown on the Test Review page
+- "🤖 Ask AI Tutor more about this" remains available from review contexts
 
 **Bottom Bar:**
-- Previous · Next · (Tutor: "Next Question" after reveal) · (Timed: "Mark & Next")
+- Previous · Next · (Timed: "Mark & Next")
 
 **Right Drawer (toggleable):**
 - Q navigator grid: numbered squares
@@ -515,7 +509,7 @@ Weak subjects picked in onboarding get extra `practice` days injected via `useRo
 **Header Card:**
 - Score: 72% (29/40 correct)
 - Time taken: 38 min
-- Mode: Tutor
+- Mode: Timed
 - vs. Cohort avg: +4% (shown as a small comparison bar)
 - Action buttons: "Retake Test" · "Return to QBank" · "Export Summary" (toast: "Preparing PDF…")
 

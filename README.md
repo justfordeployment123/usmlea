@@ -319,6 +319,267 @@ Required fields in notes table:
 - is_pinned
 - created_at, updated_at, deleted_at
 
+## 12. STUDENT ANALYTICS PAGE — FULL FRONTEND/BACKEND/DB CONTRACT
+
+This section defines the complete architecture for the Student Analytics page (`/student/analytics`) including tab behavior, filter logic, backend contracts, data modeling, and aggregation formulas.
+
+### 12.1 Product Intent
+
+The Student Analytics page must answer three practical questions for a learner:
+
+1. **Overview:** “Am I improving over time?”
+2. **Strengths & Weaknesses:** “Which subjects/topics are weak right now?”
+3. **History:** “What exactly did I attempt recently and what type of test was it?”
+
+The page is scoped to the learner’s fixed target exam and then filtered by subject/topic.
+
+---
+
+### 12.2 Frontend Information Architecture
+
+Route: `/student/analytics`
+
+Current implementation files:
+- `frontend/src/pages/student/AnalyticsPage.tsx`
+- `frontend/src/components/student/analytics/TrendCharts.tsx`
+- `frontend/src/components/student/analytics/PerformanceHeatmap.tsx`
+- `frontend/src/components/taxonomy/TaxonomyFilterBar.tsx`
+
+Tabs:
+- **Overview**
+    - KPI cards: average score, questions answered, streak days, total hours
+    - Trend charts: score trend, performance by subject, study hours by week
+- **Strengths & Weaknesses**
+    - Heatmap (subject × topic) with color buckets
+    - Weakest-cell summary text
+- **Test History**
+    - Recent attempts list with date, subject/topic focus, test type, score, duration
+
+---
+
+### 12.3 Taxonomy Scope Rules (Student Side)
+
+Student analytics scope is intentionally constrained:
+
+- **Exam:** fixed from the student exam context (not editable in UI)
+- **Subject:** supports `all` plus specific subject IDs
+- **Topic:** supports `all` plus specific topic IDs
+    - Topic selector is disabled when `subject = all`
+
+Rationale:
+- Students should not cross-switch exam contexts in analytics.
+- Admin can cross-scope exams; student cannot.
+
+---
+
+### 12.4 Mixed Tests Handling
+
+Some tests contain multiple subjects/topics (especially mock or mixed sessions). Each question-attempt carries its own taxonomy tags.
+
+Required behavior:
+- Every attempt contributes to its own tagged subject/topic bucket.
+- With `subject = all`, mixed tests influence all relevant subject rows.
+- With a specific subject/topic selected, only matching attempts are included.
+
+This prevents loss of signal from mixed sessions.
+
+---
+
+### 12.5 Core Aggregation Formulas
+
+All metric formulas should be deterministic and computed from attempt-level events:
+
+- `toPct(correct, total) = round((correct / total) * 100)` if `total > 0`, else `0`
+- `totalHours = round(sum(durationSec) / 3600, 1)`
+- `streakDays = count of consecutive active date keys from latest day backward`
+
+Overview KPIs:
+- `avgScore`: accuracy over filtered attempts
+- `questionsAnswered`: filtered attempt count
+- `streakDays`: consecutive active days
+- `totalHours`: filtered study duration
+
+Score trend:
+- Group attempts by date key (`YYYY-MM-DD`)
+- For each day: `score = toPct(correct, total)`
+- Show most recent window (e.g., last 8 points in current UI)
+
+Subject performance:
+- For each subject in selected exam:
+    - `score = toPct(subjectCorrect, subjectAttempts)`
+
+Study hours by week:
+- Anchor week calculation to first attempt in filtered scope
+- `weekIndex = floor(diffDays / 7)`
+- Bucket to fixed display range (current UI: W1..W4)
+
+Heatmap:
+- For each subject/topic cell:
+    - `score = toPct(topicCorrect, topicAttempts)`
+- Color mapping:
+    - Red: `< 50`
+    - Yellow: `50..74`
+    - Green: `>= 75`
+
+Weakest topic summary:
+- Flatten all heatmap cells in current scope
+- Select minimum `score` cell
+
+Test history row fields:
+- Date, Subject Focus (`Subject: Topic`), Test Type (`Roadmap|Custom|Mock`), Score, Duration
+
+---
+
+### 12.6 Backend API Contract
+
+Recommended endpoint strategy:
+
+1. `GET /api/student/analytics/overview`
+     - query: `subjectId=all|<id>&topicId=all|<id>&from=<iso>&to=<iso>`
+     - response:
+         - `kpis`
+         - `scoreTrend[]`
+         - `subjectPerformance[]`
+         - `studyHoursByWeek[]`
+
+2. `GET /api/student/analytics/matrix`
+     - query: same scope fields
+     - response:
+         - `heatmapRows[]`
+         - `weakestCell`
+
+3. `GET /api/student/analytics/history`
+     - query: same scope fields + `limit` + `cursor`
+     - response:
+         - paginated rows with `testType` (`roadmap|custom|mock`)
+
+Auth requirements:
+- JWT required
+- `userId` derived from token, never from client query
+- `examId` derived from user profile/roadmap context, not from client payload
+
+---
+
+### 12.7 Database Model (Recommended)
+
+Current frontend demo uses `MOCK_STUDENT_ATTEMPTS`. Production should persist normalized analytics events.
+
+#### 12.7.1 Attempt Event Table
+
+```sql
+CREATE TYPE test_type AS ENUM ('roadmap', 'custom', 'mock');
+
+CREATE TABLE question_attempt_events (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    test_id UUID NOT NULL,
+    test_type test_type NOT NULL,
+    exam_id VARCHAR(120) NOT NULL,
+    subject_id VARCHAR(120) NOT NULL,
+    topic_id VARCHAR(120) NOT NULL,
+    question_id VARCHAR(120) NOT NULL,
+    is_correct BOOLEAN NOT NULL,
+    duration_sec INT NOT NULL,
+    answered_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_qae_user_exam_time ON question_attempt_events(user_id, exam_id, answered_at DESC);
+CREATE INDEX idx_qae_user_subject_topic ON question_attempt_events(user_id, subject_id, topic_id);
+```
+
+#### 12.7.2 Optional Daily Aggregate Table (Performance)
+
+```sql
+CREATE TABLE analytics_daily_rollups (
+    user_id UUID NOT NULL,
+    exam_id VARCHAR(120) NOT NULL,
+    date_key DATE NOT NULL,
+    subject_id VARCHAR(120) NOT NULL,
+    topic_id VARCHAR(120) NOT NULL,
+    attempts INT NOT NULL,
+    correct INT NOT NULL,
+    duration_sec INT NOT NULL,
+    PRIMARY KEY (user_id, exam_id, date_key, subject_id, topic_id)
+);
+```
+
+Use nightly/streaming jobs to maintain rollups for fast dashboards.
+
+---
+
+### 12.8 Event Ingestion Flow
+
+1. Student submits test block.
+2. Backend expands submission into per-question attempt events.
+3. Persist into `question_attempt_events` in one transaction.
+4. Emit async analytics update job (or direct upsert into daily rollup).
+5. Student analytics endpoints read from rollups (preferred) or raw events.
+
+---
+
+### 12.9 Caching Strategy
+
+Use Redis keying by user + exam + filter scope.
+
+Example key:
+`analytics:{userId}:{examId}:subject={subjectId}:topic={topicId}:from={from}:to={to}`
+
+Invalidation triggers:
+- new test submission for user
+- manual score reprocessing
+- taxonomy migration affecting IDs
+
+TTL recommendation:
+- 60s to 300s for dashboard responsiveness vs freshness.
+
+---
+
+### 12.10 Observability and Reliability
+
+Frontend Phase 2 already includes:
+- global window error capture
+- unhandled promise rejection capture
+- structured frontend logs
+
+Analytics-specific backend telemetry should log:
+- endpoint latency per scope
+- cache hit ratio
+- query fanout / row scan counts
+- empty-state frequency by scope
+
+SLO examples:
+- P95 analytics endpoint < 400ms (cached) and < 1200ms (uncached)
+- analytics error rate < 0.5%
+
+---
+
+### 12.11 Edge Cases (Must Handle)
+
+1. **No attempts in scope**
+     - return zero-safe KPIs and empty/fallback series
+2. **Subject = all + topic selected (invalid combo)**
+     - force topic to `all`
+3. **Malformed historical taxonomy IDs**
+     - map unknown IDs to safe labels (`Unknown Subject`, `Unknown Topic`) without breaking page
+4. **Mixed tests**
+     - distribute by attempt taxonomy tags (never assign whole test to one subject)
+5. **Large histories**
+     - use cursor pagination for history tab
+
+---
+
+### 12.12 Frontend Integration Notes
+
+Current UI computes analytics client-side from mock data for demo speed.
+Production transition path:
+
+1. Keep tab and visualization components unchanged.
+2. Replace local aggregations with API data hooks.
+3. Keep filter UX and scope rules identical.
+4. Preserve `testType` labels in history (`Roadmap|Custom|Mock`).
+
+This guarantees minimal UI churn while backend matures.
+
 Save rules for backend:
 - Save endpoint should accept title, subject, contentMarkdown, and isPinned.
 - Persist content_markdown exactly as sent from frontend.
@@ -1872,3 +2133,561 @@ Phase C (operational hardening):
 3. Add observability, alerts, and load tests
 
 With this plan, Admin Metrics + Financials + Comments remain practical, spec-aligned, and straightforward to ship to production without overengineering.
+
+---
+
+## 17) EXAM → SUBJECT → TOPIC TAXONOMY ANALYTICS (FULL PRODUCTION BLUEPRINT)
+
+This chapter defines the exact implementation model for taxonomy-driven analytics, where every metric is computed from question-level outcomes mapped to:
+
+1. exam
+2. subject
+3. topic
+
+This section is written so a future backend engineer can build the full production stack without ambiguity.
+
+### 17.1 Problem Statement and Non-Negotiable Rules
+
+#### A) What must be true
+
+1. Every question belongs to exactly one `exam`, one `subject`, and one `topic`.
+2. Every submitted test attempt stores per-question outcomes.
+3. Analytics at exam/subject/topic level are derived from question outcomes, not guessed from test-level totals.
+4. A subject/topic metric is always scoped to one exam taxonomy.
+5. Roadmap tests, custom tests, and mock tests all feed the same analytics pipeline.
+
+#### B) Why this matters
+
+Without question-level taxonomy tagging, admin metrics (engagement, weak topics, risk, distribution) become noisy and non-actionable. The platform must answer:
+
+- “How are students performing in `Exam X > Subject Y > Topic Z`?”
+- “Which topics are weak globally for this exam cohort?”
+- “Which students are disengaging in a specific topic?”
+
+### 17.2 Canonical Domain Model
+
+Use strict normalized entities:
+
+1. `exams`
+2. `exam_subjects`
+3. `subject_topics`
+4. `question_bank`
+5. `tests`
+6. `test_question_map`
+7. `test_attempts`
+8. `attempt_question_results`
+
+Core identity principle:
+
+- `question_id` is the atomic analytics unit.
+- Topic-level metrics are computed by aggregating all `attempt_question_results` for questions mapped to that topic.
+
+### 17.3 Database Schema (Authoritative)
+
+#### A) Taxonomy tables
+
+```sql
+CREATE TABLE exams (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    code VARCHAR(64) UNIQUE NOT NULL,            -- e.g. USMLE_STEP1
+    name VARCHAR(255) NOT NULL,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE exam_subjects (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    exam_id UUID NOT NULL REFERENCES exams(id) ON DELETE CASCADE,
+    code VARCHAR(64) NOT NULL,                   -- e.g. PATHOLOGY
+    name VARCHAR(255) NOT NULL,
+    display_order INT NOT NULL DEFAULT 0,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (exam_id, code)
+);
+
+CREATE TABLE subject_topics (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    subject_id UUID NOT NULL REFERENCES exam_subjects(id) ON DELETE CASCADE,
+    code VARCHAR(64) NOT NULL,                   -- e.g. CARDIO_SHOCK
+    name VARCHAR(255) NOT NULL,
+    display_order INT NOT NULL DEFAULT 0,
+    difficulty_band VARCHAR(32),                 -- optional metadata
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (subject_id, code)
+);
+
+CREATE INDEX idx_exam_subjects_exam ON exam_subjects(exam_id);
+CREATE INDEX idx_subject_topics_subject ON subject_topics(subject_id);
+```
+
+#### B) Question and test composition
+
+```sql
+CREATE TYPE test_source AS ENUM ('roadmap', 'custom', 'mock', 'diagnostic');
+
+CREATE TABLE question_bank (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    exam_id UUID NOT NULL REFERENCES exams(id),
+    subject_id UUID NOT NULL REFERENCES exam_subjects(id),
+    topic_id UUID NOT NULL REFERENCES subject_topics(id),
+    external_ref VARCHAR(255),
+    stem TEXT NOT NULL,
+    difficulty SMALLINT,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_question_taxonomy ON question_bank(exam_id, subject_id, topic_id);
+
+CREATE TABLE tests (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES users(id) ON DELETE SET NULL, -- nullable for system-generated sets
+    exam_id UUID NOT NULL REFERENCES exams(id),
+    source test_source NOT NULL,
+    title VARCHAR(255),
+    created_by UUID REFERENCES users(id) ON DELETE SET NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE test_question_map (
+    test_id UUID NOT NULL REFERENCES tests(id) ON DELETE CASCADE,
+    question_id UUID NOT NULL REFERENCES question_bank(id),
+    question_order INT NOT NULL,
+    marks NUMERIC(6,2) NOT NULL DEFAULT 1,
+    PRIMARY KEY (test_id, question_id)
+);
+
+CREATE INDEX idx_tqm_test ON test_question_map(test_id, question_order);
+```
+
+#### C) Attempt storage (must be question-level)
+
+```sql
+CREATE TYPE attempt_status AS ENUM ('started', 'submitted', 'abandoned');
+
+CREATE TABLE test_attempts (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    test_id UUID NOT NULL REFERENCES tests(id),
+    user_id UUID NOT NULL REFERENCES users(id),
+    exam_id UUID NOT NULL REFERENCES exams(id),
+    source test_source NOT NULL,
+    status attempt_status NOT NULL DEFAULT 'started',
+    started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    submitted_at TIMESTAMPTZ,
+    time_spent_seconds INT,
+    total_questions INT NOT NULL DEFAULT 0,
+    correct_answers INT NOT NULL DEFAULT 0,
+    score_percentage NUMERIC(5,2),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_attempts_exam_submitted ON test_attempts(exam_id, submitted_at DESC);
+CREATE INDEX idx_attempts_user_submitted ON test_attempts(user_id, submitted_at DESC);
+CREATE INDEX idx_attempts_source ON test_attempts(source);
+
+CREATE TABLE attempt_question_results (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    attempt_id UUID NOT NULL REFERENCES test_attempts(id) ON DELETE CASCADE,
+    question_id UUID NOT NULL REFERENCES question_bank(id),
+    exam_id UUID NOT NULL REFERENCES exams(id),
+    subject_id UUID NOT NULL REFERENCES exam_subjects(id),
+    topic_id UUID NOT NULL REFERENCES subject_topics(id),
+    is_correct BOOLEAN NOT NULL,
+    obtained_marks NUMERIC(6,2) NOT NULL DEFAULT 0,
+    max_marks NUMERIC(6,2) NOT NULL DEFAULT 1,
+    time_spent_seconds INT,
+    answered_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (attempt_id, question_id)
+);
+
+CREATE INDEX idx_aqr_exam_subject_topic_time
+    ON attempt_question_results(exam_id, subject_id, topic_id, answered_at DESC);
+CREATE INDEX idx_aqr_topic_time ON attempt_question_results(topic_id, answered_at DESC);
+CREATE INDEX idx_aqr_attempt ON attempt_question_results(attempt_id);
+```
+
+### 17.4 Write Path: What Happens on Test Submit
+
+When a student submits a test:
+
+1. Backend validates auth and ownership (`attempt.user_id == token.user_id`).
+2. Backend locks the attempt row (`SELECT ... FOR UPDATE`) to prevent duplicate submit.
+3. Backend fetches canonical question mapping from `test_question_map` + `question_bank`.
+4. For each answer, backend writes one `attempt_question_results` row with exam/subject/topic IDs.
+5. Backend computes attempt totals:
+   - `total_questions = N`
+   - `correct_answers = C`
+   - `score_percentage = (C / N) * 100`
+6. Backend marks attempt `status='submitted'` and writes `submitted_at`.
+7. Backend emits domain event `attempt.submitted`.
+
+All seven steps run in a single DB transaction.
+
+### 17.5 Aggregation Model (How Engagement/Accuracy Are Calculated)
+
+Use dual strategy:
+
+1. **Hot path (near realtime):** incremental counters for admin dashboards.
+2. **Cold path (reconciliation):** periodic recompute from canonical rows.
+
+#### A) Required aggregate tables
+
+```sql
+CREATE TABLE analytics_topic_daily (
+    date_key DATE NOT NULL,
+    exam_id UUID NOT NULL,
+    subject_id UUID NOT NULL,
+    topic_id UUID NOT NULL,
+    total_attempted_questions BIGINT NOT NULL DEFAULT 0,
+    total_correct_questions BIGINT NOT NULL DEFAULT 0,
+    unique_students BIGINT NOT NULL DEFAULT 0,
+    total_time_seconds BIGINT NOT NULL DEFAULT 0,
+    PRIMARY KEY (date_key, exam_id, subject_id, topic_id)
+);
+
+CREATE TABLE analytics_subject_daily (
+    date_key DATE NOT NULL,
+    exam_id UUID NOT NULL,
+    subject_id UUID NOT NULL,
+    total_attempted_questions BIGINT NOT NULL DEFAULT 0,
+    total_correct_questions BIGINT NOT NULL DEFAULT 0,
+    unique_students BIGINT NOT NULL DEFAULT 0,
+    PRIMARY KEY (date_key, exam_id, subject_id)
+);
+
+CREATE TABLE analytics_exam_daily (
+    date_key DATE NOT NULL,
+    exam_id UUID NOT NULL,
+    total_attempts BIGINT NOT NULL DEFAULT 0,
+    total_attempted_questions BIGINT NOT NULL DEFAULT 0,
+    total_correct_questions BIGINT NOT NULL DEFAULT 0,
+    unique_students BIGINT NOT NULL DEFAULT 0,
+    PRIMARY KEY (date_key, exam_id)
+);
+```
+
+#### B) Metric formulas (authoritative)
+
+- Topic accuracy:
+  $$\text{topicAccuracyPct} = \frac{\text{totalCorrectQuestions}}{\text{totalAttemptedQuestions}} \times 100$$
+- Topic engagement:
+  $$\text{topicEngagementCount} = \text{uniqueStudents who attempted topic in window}$$
+- Subject accuracy and engagement are the same formulas aggregated across all topics in the subject.
+- Exam-level values aggregate across all subjects and topics under that exam.
+
+#### C) Weak-topic classification
+
+Suggested baseline rule (configurable):
+
+1. minimum volume gate: `total_attempted_questions >= 30`
+2. weak threshold: `accuracy < 55%`
+3. severe threshold: `accuracy < 40%`
+
+Store thresholds in config table, not hardcoded constants.
+
+### 17.6 Backend Services and Jobs
+
+#### A) Synchronous service (API)
+
+- `AssessmentSubmissionService`
+  - validates submission,
+  - persists canonical results,
+  - publishes `attempt.submitted` event.
+
+#### B) Async workers
+
+1. `AttemptAggregationWorker`
+   - consumes `attempt.submitted`,
+   - updates daily aggregate tables with upsert increments.
+2. `AnalyticsReconciliationWorker` (hourly/nightly)
+   - recomputes aggregates for recent window (e.g., last 7 days),
+   - compares computed vs stored totals,
+   - repairs drift if mismatch exceeds tolerance.
+3. `RiskScoringWorker`
+   - computes student risk by trend + inactivity + weak-topic density.
+
+### 17.7 API Contracts for Admin Metrics (Taxonomy-Aware)
+
+All endpoints require admin auth and support the same filter grammar:
+
+- `examId` (required)
+- `subjectId` (optional)
+- `topicId` (optional)
+- `from`, `to` (date window)
+- `source` (optional: `roadmap|custom|mock|diagnostic|all`)
+
+#### A) Taxonomy discovery
+
+1. `GET /api/admin/taxonomy/exams`
+2. `GET /api/admin/taxonomy/exams/:examId/subjects`
+3. `GET /api/admin/taxonomy/subjects/:subjectId/topics`
+
+#### B) KPI summary
+
+`GET /api/admin/metrics/summary?examId=...&subjectId=...&topicId=...&from=...&to=...`
+
+Response should include:
+
+- `attemptsCount`
+- `studentsEngaged`
+- `accuracyPct`
+- `avgTimePerQuestionSec`
+- `weakTopics[]` (when scope is exam/subject)
+
+#### C) Trend and distribution
+
+1. `GET /api/admin/metrics/engagement-trend`
+2. `GET /api/admin/metrics/accuracy-trend`
+3. `GET /api/admin/metrics/score-distribution`
+4. `GET /api/admin/metrics/weekly-activity`
+
+All responses must echo back normalized scope object:
+
+```json
+{
+  "scope": {
+    "examId": "...",
+    "subjectId": "...",
+    "topicId": "...",
+    "source": "all",
+    "from": "2026-04-01",
+    "to": "2026-04-30"
+  }
+}
+```
+
+### 17.8 Frontend/Backend Synchronization Contract
+
+Frontend currently simulates this in:
+
+- `/frontend/src/data/examTaxonomy.ts`
+- `/frontend/src/data/mockStudentAttempts.ts`
+- `/frontend/src/services/simulatedAiEngine.ts`
+- `/frontend/src/components/taxonomy/TaxonomyFilterBar.tsx`
+- `/frontend/src/pages/admin/AdminMetricsPage.tsx`
+
+To move from simulation to production, preserve the same interaction flow:
+
+1. UI selects `exam`.
+2. UI fetches subjects for exam.
+3. UI selects `subject` (optional).
+4. UI fetches topics for subject.
+5. UI selects `topic` (optional).
+6. UI requests metrics using current scope.
+7. Backend returns scope-normalized payload + computed metrics.
+
+#### A) Frontend state invariants
+
+1. If `examId` changes, clear `subjectId` and `topicId`.
+2. If `subjectId` changes, clear `topicId`.
+3. Do not send `topicId` without `subjectId`.
+4. Disable metric calls until required scope (`examId`) exists.
+
+#### B) Cache strategy
+
+- Cache taxonomy trees (`exams`, `subjects`, `topics`) with long TTL.
+- Cache metrics queries by full filter key (`examId+subjectId+topicId+range+source`).
+- Invalidate metrics cache on filter change or explicit refresh.
+
+### 17.9 Data Integrity and Guardrails
+
+#### A) Integrity constraints
+
+1. `question_bank.exam_id` must match test exam.
+2. `attempt_question_results.*_id` must match canonical question taxonomy.
+3. Submit endpoint must reject attempts where submitted question list differs from assigned test question map.
+
+#### B) Idempotency
+
+- Use idempotency key per submission (`attemptId` + final hash).
+- Repeated submit calls must not double-write `attempt_question_results`.
+
+#### C) Time-window correctness
+
+- Use UTC everywhere in storage and aggregation.
+- Derive `date_key` with explicit timezone policy (UTC).
+
+### 17.10 RBAC and Security
+
+1. Student endpoints can only write/read their own attempts.
+2. Admin metrics endpoints require `role='admin'`.
+3. Audit log each admin analytics request for sensitive cohort slices (optional but recommended in regulated environments).
+4. Do not expose question stems/answers in admin metrics APIs unless explicitly required.
+
+### 17.11 Observability and Operational SLOs
+
+Track these metrics:
+
+1. `attempt_submit_success_rate`
+2. `attempt_submit_p95_latency`
+3. `aggregation_worker_lag_seconds`
+4. `aggregation_reconciliation_drift_count`
+5. `metrics_api_p95_latency`
+
+Alerting recommendations:
+
+- page if submission success drops below 99.5% over 10 minutes,
+- page if worker lag > 300s for 15 minutes,
+- warn if drift repairs exceed threshold daily.
+
+### 17.12 Migration Plan from Current Frontend Simulation
+
+#### Phase 1 (already done)
+
+- Frontend taxonomy simulation and AI-like insights.
+
+#### Phase 2 (backend foundation)
+
+1. Create taxonomy + question + attempt tables.
+2. Implement test submit endpoint with question-level persistence.
+3. Implement taxonomy read endpoints.
+
+#### Phase 3 (analytics)
+
+1. Add aggregate tables + worker.
+2. Implement metrics endpoints for exam/subject/topic scopes.
+3. Validate formulas against fixture datasets.
+
+#### Phase 4 (cutover)
+
+1. Replace simulated engine calls with real API calls.
+2. Keep payload shapes stable to minimize frontend diffs.
+3. Run dual-read verification (simulated vs real) for short window in staging.
+
+### 17.13 Acceptance Criteria (Definition of Done)
+
+This feature is complete only when all statements below are true:
+
+1. A student submits any test type (`roadmap/custom/mock`) and per-question results are persisted with exam/subject/topic IDs.
+2. Admin can filter by exam only and see valid aggregated metrics.
+3. Admin can filter by exam+subject and see narrowed metrics.
+4. Admin can filter by exam+subject+topic and see precise metrics.
+5. Weak-topic detection uses configured thresholds and minimum volume gates.
+6. Aggregation worker is idempotent and reconciliation repairs drift.
+7. API responses include explicit scope echo to prevent frontend mismatch.
+8. RBAC blocks non-admin access to admin analytics endpoints.
+
+With this blueprint, future backend development for taxonomy analytics is fully specified across schema, pipelines, services, API contracts, synchronization behavior, and operational guardrails.
+
+### 17.14 Frontend Phase 1 Implementation Contract (Now Implemented)
+
+This subsection records what is already implemented in frontend for Phase 1 (Exam Taxonomy Alignment), and the exact payload/contract backend should support for seamless cutover.
+
+#### A) Implemented frontend files
+
+1. `frontend/src/components/student/create-test/AutoTestBuilder.tsx`
+     - exam/subject/topic selectors are taxonomy-driven from `EXAM_TAXONOMY`,
+     - exam change resets subject+topic,
+     - subject change resets topic,
+     - start action navigates with `testBlueprint` route state.
+
+2. `frontend/src/pages/student/TestSessionPage.tsx`
+     - reads `testBlueprint`,
+     - scopes questions to `examId+subjectId+topicId` (with fallback to subject/exam pools),
+     - produces per-question submission rows with taxonomy IDs and `testType`,
+     - forwards results to review page.
+
+3. `frontend/src/pages/student/TestReviewPage.tsx`
+     - consumes submitted question results,
+     - renders scope-aware score header,
+     - derives weakest topic from incorrect-rate in submitted payload.
+
+4. `frontend/src/pages/student/AnalyticsPage.tsx`
+     - uses taxonomy filter (`exam + subject + topic`),
+     - computes KPI/trends/heatmap/history from filtered attempt rows,
+     - preserves dependent reset logic across filter levels.
+
+5. `frontend/src/data/questions.ts`
+     - question objects now carry canonical taxonomy IDs/labels.
+
+6. `frontend/src/data/createTest.ts`
+     - introduces canonical `TestBlueprint` contract with `testType` + scope IDs.
+
+#### B) Canonical frontend contracts
+
+```ts
+type TestMode = 'Tutor' | 'Timed'
+type TestType = 'roadmap' | 'custom' | 'mock'
+
+interface TestBlueprint {
+    examId: string
+    examLabel: string
+    subjectId: string
+    subjectLabel: string
+    topicId: string
+    topicLabel: string
+    questionCount: number
+    mode: TestMode
+    testType: TestType
+}
+
+interface SubmittedQuestionResult {
+    questionId: string
+    examId: string
+    subjectId: string
+    topicId: string
+    testType: TestType
+    selectedChoiceId: string
+    isCorrect: boolean
+    durationSec: number
+}
+```
+
+#### C) Frontend handoff expectations for backend APIs
+
+When backend endpoints are introduced, frontend should send `SubmittedQuestionResult[]` payload semantics exactly (field names can remain identical to minimize mapping logic).
+
+Recommended submit endpoint contract:
+
+```http
+POST /api/student/tests/:testId/submit
+```
+
+Request body shape expected by frontend integration:
+
+```json
+{
+    "testBlueprint": {
+        "examId": "usmle-step1",
+        "subjectId": "pharma",
+        "topicId": "autonomic-drugs",
+        "questionCount": 20,
+        "mode": "Tutor",
+        "testType": "roadmap"
+    },
+    "submittedQuestionResults": [
+        {
+            "questionId": "q1",
+            "examId": "usmle-step1",
+            "subjectId": "pharma",
+            "topicId": "autonomic-drugs",
+            "testType": "roadmap",
+            "selectedChoiceId": "B",
+            "isCorrect": true,
+            "durationSec": 60
+        }
+    ]
+}
+```
+
+#### D) Synchronization rules backend must honor
+
+1. Validate that each `questionId` actually belongs to provided `examId/subjectId/topicId`.
+2. Reject mixed-exam submissions in one attempt.
+3. Compute official correctness server-side; do not trust client `isCorrect` blindly.
+4. Persist `testType` per attempt row to allow roadmap/custom/mock slice analytics.
+5. Return scope echo in responses so frontend can detect mismatched filters.
+
+#### E) Cutover plan (frontend already prepared)
+
+1. Replace local route-state submission in `TestSessionPage.tsx` with API call.
+2. Keep `TestReviewPage.tsx` shape-compatible by returning `submittedQuestionResults` from backend response.
+3. Replace local analytics derivation in `AnalyticsPage.tsx` with API response mapper while keeping existing view models unchanged.
+
+This gives a low-risk migration path: backend can be introduced without redesigning the current frontend state machine.

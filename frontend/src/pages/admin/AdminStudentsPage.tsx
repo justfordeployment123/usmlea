@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Activity, AlertTriangle, Search, Shield, UserRoundCog } from 'lucide-react'
 import {
   ADMIN_STUDENT_OPS_DATA,
@@ -41,15 +41,12 @@ export default function AdminStudentsPage() {
     })
   }, [searchTerm, statusFilter, riskFilter, subscriptionFilter, cohortFilter, students])
 
-  useEffect(() => {
-    if (!filteredStudents.some(student => student.id === selectedStudentId)) {
-      setSelectedStudentId(filteredStudents[0]?.id ?? '')
-    }
-  }, [filteredStudents, selectedStudentId])
+  const activeStudentId =
+    filteredStudents.some(student => student.id === selectedStudentId) ? selectedStudentId : (filteredStudents[0]?.id ?? '')
 
   const selectedStudent = useMemo(
-    () => students.find(student => student.id === selectedStudentId) ?? null,
-    [students, selectedStudentId],
+    () => students.find(student => student.id === activeStudentId) ?? null,
+    [students, activeStudentId],
   )
 
   const kpis = useMemo(() => {
@@ -256,7 +253,7 @@ export default function AdminStudentsPage() {
                 {filteredStudents.map(student => (
                   <tr
                     key={student.id}
-                    className={student.id === selectedStudentId ? 'selected' : ''}
+                    className={student.id === activeStudentId ? 'selected' : ''}
                     onClick={() => setSelectedStudentId(student.id)}
                   >
                     <td>

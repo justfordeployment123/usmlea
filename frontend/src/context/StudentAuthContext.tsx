@@ -1,5 +1,7 @@
 /* eslint-disable react-refresh/only-export-components */
 import React, { createContext, useContext, useState } from 'react'
+import { safeParseJson } from '../services/errorUtils'
+import { captureException, logWarn } from '../services/observability'
 
 interface StudentUser {
   name: string
@@ -19,10 +21,27 @@ interface StudentAuthContextType {
 
 const StudentAuthContext = createContext<StudentAuthContextType | null>(null)
 
+function isStudentUser(value: unknown): value is StudentUser {
+  if (!value || typeof value !== 'object') return false
+
+  const candidate = value as Partial<StudentUser>
+  return (
+    typeof candidate.name === 'string' &&
+    typeof candidate.email === 'string' &&
+    typeof candidate.onboarded === 'boolean' &&
+    (candidate.tier === 'Basic' || candidate.tier === 'Pro' || candidate.tier === 'Elite')
+  )
+}
+
 export const StudentAuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<StudentUser | null>(() => {
-    const stored = localStorage.getItem('studentUser')
-    return stored ? JSON.parse(stored) : null
+    const parsed = safeParseJson<unknown>(localStorage.getItem('studentUser'))
+    if (!parsed) return null
+    if (isStudentUser(parsed)) return parsed
+
+    logWarn('Ignored malformed persisted student user')
+    localStorage.removeItem('studentUser')
+    return null
   })
 
   const login = (email: string, password: string): boolean => {
@@ -31,9 +50,14 @@ export const StudentAuthProvider: React.FC<{ children: React.ReactNode }> = ({ c
     if (!email.trim()) return false
     const stored = localStorage.getItem('studentUser')
     if (stored) {
-      const parsed = JSON.parse(stored)
-      setUser(parsed)
-      return true
+      const parsed = safeParseJson<unknown>(stored)
+      if (isStudentUser(parsed)) {
+        setUser(parsed)
+        return true
+      }
+
+      logWarn('Clearing invalid persisted student user during login')
+      localStorage.removeItem('studentUser')
     }
     // Create demo user if none exists
     const demoUser: StudentUser = {
@@ -48,15 +72,19 @@ export const StudentAuthProvider: React.FC<{ children: React.ReactNode }> = ({ c
   }
 
   const register = (name: string, email: string, _password: string, medicalSchool?: string) => {
-    const newUser: StudentUser = {
-      name,
-      email,
-      medicalSchool,
-      onboarded: false,
-      tier: 'Basic',
+    try {
+      const newUser: StudentUser = {
+        name,
+        email,
+        medicalSchool,
+        onboarded: false,
+        tier: 'Basic',
+      }
+      localStorage.setItem('studentUser', JSON.stringify(newUser))
+      setUser(newUser)
+    } catch (error) {
+      captureException(error, { feature: 'student-auth', action: 'register' })
     }
-    localStorage.setItem('studentUser', JSON.stringify(newUser))
-    setUser(newUser)
   }
 
   const logout = () => {
@@ -66,9 +94,13 @@ export const StudentAuthProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
   const completeOnboarding = () => {
     if (!user) return
-    const updated = { ...user, onboarded: true }
-    localStorage.setItem('studentUser', JSON.stringify(updated))
-    setUser(updated)
+    try {
+      const updated = { ...user, onboarded: true }
+      localStorage.setItem('studentUser', JSON.stringify(updated))
+      setUser(updated)
+    } catch (error) {
+      captureException(error, { feature: 'student-auth', action: 'complete-onboarding' })
+    }
   }
 
   return (

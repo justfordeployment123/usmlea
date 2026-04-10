@@ -68,6 +68,18 @@
   overflow-y: auto;
 }
 
+.roadmap-velocity-section {
+  padding: var(--space-6);
+  border-top: 1px solid var(--color-border-light);
+  border-bottom: 1px solid var(--color-border-light);
+  background: var(--color-surface);
+}
+
+.roadmap-velocity-section .timeline-card {
+  max-width: 620px;
+  margin: 0 auto;
+}
+
 .week-card {
   margin-bottom: var(--space-4);
   border: 1px solid var(--color-border-light);
@@ -259,6 +271,10 @@
   .roadmap-insights {
     flex-direction: column;
   }
+
+  .roadmap-velocity-section {
+    padding: var(--space-4);
+  }
 }
 
 @media (max-width: 520px) {
@@ -267,6 +283,7 @@
   }
 
   .roadmap-header,
+  .roadmap-velocity-section,
   .roadmap-timeline,
   .roadmap-insights,
   .roadmap-cta {

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { FileText, PlayCircle, Search, BookOpen } from 'lucide-react'
 import {
   CATEGORIES,
@@ -19,7 +19,7 @@ export default function ContentHubPage() {
   const [activeCategory, setActiveCategory] = useState('All')
   const [selectedVideo, setSelectedVideo] = useState<VideoResource | null>(null)
   const [selectedPdf, setSelectedPdf] = useState<PdfResource | null>(null)
-  const [pdfPreviewStartedAt, setPdfPreviewStartedAt] = useState<number | null>(null)
+  const pdfPreviewStartedAtRef = useRef<number | null>(null)
   const [pdfProgressById, setPdfProgressById] = useState<Record<string, number>>(() =>
     Object.fromEntries(PDFS.map(pdf => [pdf.id, pdf.progress])),
   )
@@ -28,14 +28,14 @@ export default function ContentHubPage() {
     setSelectedVideo(video)
   }
 
-  const openPdfPreview = (pdf: PdfResource) => {
+  const openPdfPreview = (pdf: PdfResource, startedAtMs: number) => {
     setSelectedPdf(pdf)
-    setPdfPreviewStartedAt(Date.now())
+    pdfPreviewStartedAtRef.current = startedAtMs
   }
 
-  const closePdfPreview = () => {
-    if (selectedPdf && pdfPreviewStartedAt) {
-      const dwellSeconds = Math.floor((Date.now() - pdfPreviewStartedAt) / 1000)
+  const closePdfPreview = (endedAtMs: number) => {
+    if (selectedPdf && pdfPreviewStartedAtRef.current !== null) {
+      const dwellSeconds = Math.floor((endedAtMs - pdfPreviewStartedAtRef.current) / 1000)
 
       if (dwellSeconds >= 5) {
         const earnedProgress = Math.max(2, Math.min(12, Math.floor(dwellSeconds / 6)))
@@ -51,7 +51,7 @@ export default function ContentHubPage() {
     }
 
     setSelectedPdf(null)
-    setPdfPreviewStartedAt(null)
+    pdfPreviewStartedAtRef.current = null
   }
 
   const filteredVideos = useMemo(
@@ -165,11 +165,11 @@ export default function ContentHubPage() {
                 key={pdf.id}
                 role="button"
                 tabIndex={0}
-                onClick={() => openPdfPreview(pdf)}
+                onClick={event => openPdfPreview(pdf, event.timeStamp)}
                 onKeyDown={event => {
                   if (event.key === 'Enter' || event.key === ' ') {
                     event.preventDefault()
-                    openPdfPreview(pdf)
+                    openPdfPreview(pdf, event.timeStamp)
                   }
                 }}
               >
@@ -232,7 +232,11 @@ export default function ContentHubPage() {
                 <p className="video-modal-subject">{selectedPdf.subject}</p>
                 <h2>{selectedPdf.title}</h2>
               </div>
-              <button className="video-modal-close" onClick={closePdfPreview} aria-label="Close preview">
+              <button
+                className="video-modal-close"
+                onClick={event => closePdfPreview(event.timeStamp)}
+                aria-label="Close preview"
+              >
                 ✕
               </button>
             </div>

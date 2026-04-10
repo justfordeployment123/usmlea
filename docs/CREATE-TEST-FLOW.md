@@ -18,7 +18,8 @@ When a user navigates to `/student/create-test`, the application does not simply
 2. **Auto-Configuration:** 
    - If the active roadmap day dictates "Pharmacology - Cardiovascular Drugs", the Test Builder automatically selects this tagging.
    - It calculates the ideal question count based on the roadmap's estimated session time (e.g., 1.5 hours ≈ 40 questions).
-   - Mode defaults to "Tutor" (answers shown instantly) for early phases, and "Timed" for integration phases.
+  - Mode defaults to "Timed" (review shown after submission).
+  - During active timed solving, no explanation text/video is shown; explanations render only in post-test review.
 3. **User Agency:** A toggle ("Custom Test") allows the user to break free from the roadmap temporarily.
 
 ---

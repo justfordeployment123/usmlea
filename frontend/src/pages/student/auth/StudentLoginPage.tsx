@@ -2,6 +2,8 @@ import React, { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Eye, EyeOff, Mail, Lock, ArrowRight } from 'lucide-react'
 import { useStudentAuth } from '../../../context/StudentAuthContext'
+import { safeParseJson } from '../../../services/errorUtils'
+import { captureException } from '../../../services/observability'
 import './Auth.css'
 
 export default function StudentLoginPage() {
@@ -15,24 +17,29 @@ export default function StudentLoginPage() {
   const [error, setError] = useState('')
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setError('')
-    if (!email.trim() || !password.trim()) {
-      setError('Please enter your email and password.')
-      return
-    }
-    setLoading(true)
-    await new Promise(r => setTimeout(r, 1000))
-    const success = login(email, password)
-    setLoading(false)
-    if (success) {
-      const stored = localStorage.getItem('studentUser')
-      const user = stored ? JSON.parse(stored) : null
-      if (user?.onboarded) {
-        navigate('/student/dashboard')
-      } else {
-        navigate('/student/onboarding')
+    try {
+      e.preventDefault()
+      setError('')
+      if (!email.trim() || !password.trim()) {
+        setError('Please enter your email and password.')
+        return
       }
+      setLoading(true)
+      await new Promise(r => setTimeout(r, 1000))
+      const success = login(email, password)
+      setLoading(false)
+      if (success) {
+        const user = safeParseJson<{ onboarded?: boolean }>(localStorage.getItem('studentUser'))
+        if (user?.onboarded) {
+          navigate('/student/dashboard')
+        } else {
+          navigate('/student/onboarding')
+        }
+      }
+    } catch (error) {
+      setLoading(false)
+      setError('Something went wrong while signing in. Please try again.')
+      captureException(error, { feature: 'student-login', action: 'submit' })
     }
   }
 

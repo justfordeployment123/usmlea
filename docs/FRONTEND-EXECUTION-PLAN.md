@@ -22,10 +22,9 @@
   - `src/pages/student/TestSessionPage.tsx`
   - `src/components/student/test-session/QuestionHeader.tsx` (Timer & navigator)
   - `src/components/student/test-session/QuestionBody.tsx` (Vignette & choices)
-  - `src/components/student/test-session/TutorExplanationDrawer.tsx` (AI breakdown)
   - `src/data/questions.ts` (30-40 dummy MCQs)
-- **Developer Instructions:** Must handle strict "Tutor" Mode (instant reveal) vs "Timed" (review at end). No sidebar or layout wrapper should show here (Full-screen focus).
-- **Success Criteria:** User can select a choice and the `TutorExplanationDrawer` animates up revealing the correct answer.
+- **Developer Instructions:** Use Timed mode behavior (review at end) and suppress explanation text/video during active timer. No sidebar or layout wrapper should show here (Full-screen focus).
+- **Success Criteria:** User can complete a timed block and reach `/student/test-review`, where explanations and video references are available.
 
 ### Phase 3: Post-Test Review
 - **Goal:** Build `/student/test-review`. Immediate post-test analytics.

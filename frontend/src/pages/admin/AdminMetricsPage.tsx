@@ -11,18 +11,130 @@ import {
   YAxis,
 } from 'recharts'
 import {
-  ADMIN_ENGAGEMENT_TREND,
   ADMIN_METRICS_KPIS,
-  ADMIN_SCORE_BANDS,
-  ADMIN_WEEKLY_ACTIVITY,
   METRICS_RANGE_OPTIONS,
 } from '../../data/adminMetricsFinancials'
+import TaxonomyFilterBar from '../../components/taxonomy/TaxonomyFilterBar'
+import { EXAM_TAXONOMY } from '../../data/examTaxonomy'
+import { MOCK_STUDENT_ATTEMPTS } from '../../data/mockStudentAttempts'
+import {
+  buildEngagementTrend,
+  buildScoreDistribution,
+  buildSimulatedAiInsight,
+  buildWeeklyActivity,
+  filterAttemptsByTaxonomy,
+} from '../../services/simulatedAiEngine'
+import { captureException } from '../../services/observability'
 import '../../styles/admin-metrics-financials.css'
 
 export default function AdminMetricsPage() {
+  const initialExam = EXAM_TAXONOMY[0]
+  const initialSubject = initialExam.subjects[0]
   const [range, setRange] = useState<(typeof METRICS_RANGE_OPTIONS)[number]>('30d')
+  const [examId, setExamId] = useState(initialExam.id)
+  const [subjectId, setSubjectId] = useState(initialSubject.id)
+  const [topicId, setTopicId] = useState('all')
 
-  const kpis = useMemo(() => ADMIN_METRICS_KPIS, [range])
+  const metricsModel = useMemo(() => {
+    try {
+      const filteredAttempts = filterAttemptsByTaxonomy(MOCK_STUDENT_ATTEMPTS, {
+        examId,
+        subjectId,
+        topicId,
+      })
+      const simulatedInsight = buildSimulatedAiInsight(filteredAttempts, EXAM_TAXONOMY, { examId, subjectId, topicId })
+
+      return {
+        filteredAttempts,
+        simulatedInsight,
+        engagementTrend: buildEngagementTrend(filteredAttempts),
+        scoreDistribution: buildScoreDistribution(filteredAttempts),
+        weeklyActivity: buildWeeklyActivity(filteredAttempts),
+        error: null as string | null,
+      }
+    } catch (error) {
+      captureException(error, { feature: 'admin-metrics', action: 'derive-metrics' })
+      return {
+        filteredAttempts: [],
+        simulatedInsight: {
+          accuracyPct: 0,
+          riskLevel: 'Low' as const,
+          weakTopics: [],
+          recommendation: 'Metrics temporarily unavailable.',
+          testsSubmitted: 0,
+          activeLearners: 0,
+          studySessions: 0,
+        },
+        engagementTrend: [
+          { day: 'Mon', dau: 0, wau: 0, avgSessionMins: 0 },
+          { day: 'Tue', dau: 0, wau: 0, avgSessionMins: 0 },
+          { day: 'Wed', dau: 0, wau: 0, avgSessionMins: 0 },
+          { day: 'Thu', dau: 0, wau: 0, avgSessionMins: 0 },
+          { day: 'Fri', dau: 0, wau: 0, avgSessionMins: 0 },
+          { day: 'Sat', dau: 0, wau: 0, avgSessionMins: 0 },
+          { day: 'Sun', dau: 0, wau: 0, avgSessionMins: 0 },
+        ],
+        scoreDistribution: [
+          { band: 'Low (0-49)', learners: 0 },
+          { band: 'Medium (50-74)', learners: 0 },
+          { band: 'High (75-100)', learners: 0 },
+        ],
+        weeklyActivity: [
+          { week: 'Week 1', activeLearners: 0, testsSubmitted: 0, avgAccuracy: '0%' },
+          { week: 'Week 2', activeLearners: 0, testsSubmitted: 0, avgAccuracy: '0%' },
+          { week: 'Week 3', activeLearners: 0, testsSubmitted: 0, avgAccuracy: '0%' },
+          { week: 'Week 4', activeLearners: 0, testsSubmitted: 0, avgAccuracy: '0%' },
+        ],
+        error: 'Some metrics are temporarily unavailable. Showing fallback values.',
+      }
+    }
+  }, [examId, subjectId, topicId])
+
+  const { filteredAttempts, simulatedInsight, engagementTrend, scoreDistribution, weeklyActivity, error: metricsError } = metricsModel
+
+  const kpis = useMemo(
+    () =>
+      ADMIN_METRICS_KPIS.map(kpi => {
+        if (kpi.id === 'mk1') {
+          return {
+            ...kpi,
+            value: simulatedInsight.activeLearners.toLocaleString(),
+            delta: `Based on ${filteredAttempts.length} filtered attempts`,
+            trend: simulatedInsight.activeLearners > 0 ? 'up' : 'neutral',
+          }
+        }
+
+        if (kpi.id === 'mk2') {
+          return {
+            ...kpi,
+            value: simulatedInsight.testsSubmitted.toLocaleString(),
+            delta: `Taxonomy-filtered tests`,
+            trend: simulatedInsight.testsSubmitted > 0 ? 'up' : 'neutral',
+          }
+        }
+
+        if (kpi.id === 'mk3') {
+          return {
+            ...kpi,
+            value: simulatedInsight.studySessions.toLocaleString(),
+            delta: `Estimated from attempt activity`,
+            trend: simulatedInsight.studySessions > 0 ? 'up' : 'neutral',
+          }
+        }
+
+        if (kpi.id === 'mk4') {
+          return {
+            ...kpi,
+            value: `${simulatedInsight.accuracyPct}%`,
+            delta: `Average accuracy in selected scope`,
+            trend: simulatedInsight.accuracyPct > 0 ? 'up' : 'neutral',
+          }
+        }
+
+        return kpi
+      }),
+    [simulatedInsight, filteredAttempts.length],
+  )
 
   return (
     <div className="admin-metrics-page">
@@ -40,7 +152,29 @@ export default function AdminMetricsPage() {
             </option>
           ))}
         </select>
-        <span className="admin-metrics-controls__hint">Snapshot updates every 60 seconds.</span>
+        <span className="admin-metrics-controls__hint">Demo snapshot for the selected taxonomy scope.</span>
+        {metricsError && <span className="admin-metrics-controls__hint">{metricsError}</span>}
+      </section>
+
+      <section className="admin-metrics-taxonomy card">
+        <h3>Exam Taxonomy Scope</h3>
+        <TaxonomyFilterBar
+          taxonomy={EXAM_TAXONOMY}
+          examId={examId}
+          subjectId={subjectId}
+          topicId={topicId}
+          onExamChange={nextExamId => {
+            const nextExam = EXAM_TAXONOMY.find(item => item.id === nextExamId) ?? EXAM_TAXONOMY[0]
+            setExamId(nextExam.id)
+            setSubjectId(nextExam.subjects[0].id)
+            setTopicId('all')
+          }}
+          onSubjectChange={nextSubjectId => {
+            setSubjectId(nextSubjectId)
+            setTopicId('all')
+          }}
+          onTopicChange={setTopicId}
+        />
       </section>
 
       <section className="admin-metrics-kpis">
@@ -60,7 +194,7 @@ export default function AdminMetricsPage() {
           <div className="admin-metrics-chart-wrap">
             <div className="admin-metrics-chart-canvas">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={ADMIN_ENGAGEMENT_TREND}>
+                <LineChart data={engagementTrend}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e6eef7" />
                   <XAxis dataKey="day" tick={{ fill: '#5f7fa2', fontSize: 12 }} />
                   <YAxis tick={{ fill: '#5f7fa2', fontSize: 12 }} />
@@ -79,7 +213,7 @@ export default function AdminMetricsPage() {
           <div className="admin-metrics-chart-wrap">
             <div className="admin-metrics-chart-canvas">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={ADMIN_SCORE_BANDS}>
+                <BarChart data={scoreDistribution}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e6eef7" />
                   <XAxis dataKey="band" tick={{ fill: '#5f7fa2', fontSize: 12 }} />
                   <YAxis tick={{ fill: '#5f7fa2', fontSize: 12 }} />
@@ -105,7 +239,7 @@ export default function AdminMetricsPage() {
                 </tr>
               </thead>
               <tbody>
-                {ADMIN_WEEKLY_ACTIVITY.map(row => (
+                {weeklyActivity.map(row => (
                   <tr key={row.week}>
                     <td>{row.week}</td>
                     <td>{row.activeLearners}</td>

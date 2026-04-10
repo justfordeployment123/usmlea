@@ -126,13 +126,13 @@ Week 3 (Apr 18 - Apr 24) ← Current
 │ Subject: [Auto from roadmap]    │
 │ Topics: [Auto selected]         │
 │ # Questions: 40                 │
-│ Type: ○ Tutor  ○ Timed         │
+│ Type: ● Timed                  │
 └─────────────────────────────────┘
 ```
 
 **How it works with Roadmap:**
 - If user is on "Pathology - Immunopathology" today
-- **Default test** = 40 questions on Immunopathology (Tutor mode)
+- **Default test** = 40 questions on Immunopathology (Timed mode)
 - User can override and create custom tests anytime
 
 ### 4. **AI Tutor**
@@ -277,7 +277,7 @@ System auto-suggests:
 │ Subject: Pharmacology              │
 │ Topic: CNS Drugs                   │
 │ Questions: 40 (Recommended)        │
-│ Mode: Tutor (Best for learning)    │
+│ Mode: Timed (Roadmap-aligned)      │
 │                                    │
 │ This aligns with:                  │
 │ Week 3, Day 3 - CNS Drugs (2h)     │
@@ -302,7 +302,6 @@ User clicks "Customize" or "Create Custom Test"
 │ Test Name: [My Renal Review]          │
 │                                        │
 │ Mode:                                  │
-│  ○ Tutor Mode (instant feedback)       │
 │  ● Timed Mode (1.5 min/question)       │
 │  ○ Mock Exam (80Q, full simulation)    │
 │                                        │
@@ -339,27 +338,7 @@ User clicks "Customize" or "Create Custom Test"
 
 ### Test Modes Explained
 
-**1. Tutor Mode** (Learning focused)
-```
-Answer → Immediate feedback
-         ↓
-      ✅ or ❌
-         ↓
-    Explanation panel appears:
-    - Why correct answer is right
-    - Why each wrong answer is wrong
-    - Related video timestamp
-    - Diagram (if relevant)
-    - "Ask AI Tutor" button
-         ↓
-    User clicks "Next Question"
-         ↓
-    Repeat
-```
-
-**Use case**: Learning new topics, reviewing weak areas
-
-**2. Timed Mode** (Exam simulation lite)
+**1. Timed Mode** (Exam simulation lite)
 ```
 1.5 min countdown per question
 Answer → Mark for review (optional)
@@ -375,7 +354,7 @@ Answer → Mark for review (optional)
 
 **Use case**: Building speed, exam day preparation
 
-**3. Mock Exam Mode** (Full simulation)
+**2. Mock Exam Mode** (Full simulation)
 ```
 80 questions
 110 minutes total (not per question)
@@ -758,7 +737,7 @@ GET /api/dashboard                # All dashboard data
 GET  /api/questions/recommended   # Based on roadmap
 POST /api/tests/create            # Create test
   {
-    mode: "tutor" | "timed",
+    mode: "timed",
     source: "roadmap" | "custom" | "weak-areas",
     filters: { subjects, topics, count }
   }
@@ -847,24 +826,20 @@ GET /api/analytics/weak-areas     # Flagged topics
 │ QBank auto-suggests:                         │
 │ "📋 Based on today's roadmap:                │
 │  Pharmacology - CNS Drugs                    │
-│  40 questions, Tutor mode"                   │
+│  40 questions, Timed mode"                   │
 │                                              │
 │ User clicks [Start Test]                     │
 └─────────────────────────────────────────────┘
               ↓
 ┌─────────────────────────────────────────────┐
-│ Test Session (Tutor Mode)                    │
+│ Test Session (Timed Mode)                    │
 │                                              │
 │ Q1: Clinical vignette about beta-blocker...  │
-│ User selects answer → Immediate feedback:    │
-│ ✅ Correct! Explanation appears below.       │
+│ User selects answer → moves to next question │
 │                                              │
 │ Q2: Vignette about SSRI side effects...      │
-│ User selects wrong answer → ❌ Feedback:     │
-│ "Incorrect. Correct answer: C. Here's why..."│
-│ - Full explanation                           │
-│ - Video link: "SSRIs Deep Dive - 12:30"      │
-│ - Diagram shown                              │
+│ No immediate correctness reveal              │
+│ Explanations shown on review page            │
 │                                              │
 │ User continues → 40 questions total          │
 └─────────────────────────────────────────────┘
@@ -877,7 +852,7 @@ GET /api/analytics/weak-areas     # Flagged topics
 │   testId: "test_456",                        │
 │   answers: [...],                            │
 │   roadmapSessionId: "week3_day3_session2",   │
-│   mode: "tutor"                              │
+│   mode: "timed"                              │
 │ }                                            │
 └─────────────────────────────────────────────┘
               ↓
@@ -983,8 +958,8 @@ GET /api/analytics/weak-areas     # Flagged topics
 │  Week 5 schedule to include extra review."   │
 │                                              │
 │ Recent Tests:                                │
-│ - Pharmacology · 80% · Tutor · Today [Review]│
-│ - Pathology · 78% · Tutor · Apr 3            │
+│ - Pharmacology · 80% · Timed · Today [Review]│
+│ - Pathology · 78% · Timed · Apr 3            │
 │ - Mixed · 65% · Timed · Apr 1                │
 └─────────────────────────────────────────────┘
               ↓
@@ -1013,7 +988,7 @@ GET /api/analytics/weak-areas     # Flagged topics
     ↓
 4. User clicks "Create Test" (auto-suggests CNS Drugs questions)
     ↓
-5. User takes test (40 questions, Tutor mode)
+5. User takes test (40 questions, Timed mode)
     ↓
 6. Submit → Backend:
    - Scores test
@@ -1205,7 +1180,7 @@ POST /api/tests/create
     topics: string[],
     count: number
   },
-  mode: "tutor" | "timed"
+  mode: "timed"
 }
 Response:
 {

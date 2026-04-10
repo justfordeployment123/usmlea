@@ -3,9 +3,10 @@ import { Target, CheckCircle2, XCircle, AlertTriangle } from 'lucide-react'
 interface ScoreHeaderProps {
   totalQuestions: number
   correctCount: number
+  scopeLabel: string
 }
 
-export default function ScoreHeader({ totalQuestions, correctCount }: ScoreHeaderProps) {
+export default function ScoreHeader({ totalQuestions, correctCount, scopeLabel }: ScoreHeaderProps) {
   const incorrectCount = totalQuestions - correctCount
   const score = totalQuestions > 0 ? Math.round((correctCount / totalQuestions) * 100) : 0
 
@@ -17,7 +18,7 @@ export default function ScoreHeader({ totalQuestions, correctCount }: ScoreHeade
         </div>
       </div>
       <h2>Block Completed</h2>
-      <p className="text-secondary">Pharmacology: Cardiovascular Drugs</p>
+      <p className="text-secondary">{scopeLabel}</p>
       
       <div className="score-stats">
         <div className="stat-item"><CheckCircle2 className="text-success" size={20} /> {correctCount} Correct</div>

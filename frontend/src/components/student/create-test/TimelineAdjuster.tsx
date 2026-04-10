@@ -1,15 +1,27 @@
-import { useState } from 'react';
-import { mockRoadmapContext } from '../../../data/createTest';
-import { Activity, Clock } from 'lucide-react';
+import { useState } from 'react'
+import { mockRoadmapContext } from '../../../data/createTest'
+import { Activity, Clock } from 'lucide-react'
+import '../../../styles/create-test.css'
+import { captureException, logInfo } from '../../../services/observability'
 
 export default function TimelineAdjuster() {
-  const [totalDays, setTotalDays] = useState(mockRoadmapContext.totalDays);
-  const [loading, setLoading] = useState(false);
+  const [totalDays, setTotalDays] = useState(mockRoadmapContext.totalDays)
+  const [loading, setLoading] = useState(false)
   
   const handleRecalculate = () => {
-    setLoading(true);
-    setTimeout(() => setLoading(false), 1500);
-  };
+    try {
+      setLoading(true)
+      logInfo('Roadmap timeline recalibration requested', {
+        currentDay: mockRoadmapContext.currentDay,
+        previousTotalDays: mockRoadmapContext.totalDays,
+        nextTotalDays: totalDays,
+      })
+      setTimeout(() => setLoading(false), 1500)
+    } catch (error) {
+      setLoading(false)
+      captureException(error, { feature: 'timeline-adjuster', action: 'recalculate' })
+    }
+  }
   
   return (
     <div className="card timeline-card">
@@ -49,11 +61,11 @@ export default function TimelineAdjuster() {
            <div className="recalc-alert">
              <p>Expanding the timeline linearly balances your daily hourly load. Weak topics will receive extra review days.</p>
              <button className="btn btn-secondary w-full mt-2" onClick={handleRecalculate} disabled={loading}>
-               {loading ? 'Recalibrating AI...' : 'Apply Timeline Shift'}
+               {loading ? 'Recalculating roadmap...' : 'Apply Timeline Shift'}
              </button>
            </div>
         )}
       </div>
     </div>
-  );
+  )
 }

@@ -1,5 +1,4 @@
 import AutoTestBuilder from '../../components/student/create-test/AutoTestBuilder'
-import TimelineAdjuster from '../../components/student/create-test/TimelineAdjuster'
 import '../../styles/create-test.css'
 
 export default function CreateTestPage() {
@@ -15,9 +14,6 @@ export default function CreateTestPage() {
       <div className="create-test-layout">
         <div className="layout-left">
           <AutoTestBuilder />
-        </div>
-        <div className="layout-right">
-          <TimelineAdjuster />
         </div>
       </div>
     </div>

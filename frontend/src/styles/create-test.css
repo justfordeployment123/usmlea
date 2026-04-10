@@ -64,7 +64,9 @@
 }
 
 .layout-left {
-  flex: 0 0 calc(60% - var(--space-4));
+  flex: 1;
+  max-width: 780px;
+  margin: 0 auto;
 }
 
 .layout-right {
@@ -183,6 +185,22 @@ input:checked + .slider:before { transform: translateX(20px); background-color: 
   font-weight: 600;
   color: var(--color-navy);
   margin-bottom: var(--space-3);
+}
+
+.taxonomy-select {
+  width: 100%;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+  font-size: var(--text-sm);
+  color: var(--color-navy);
+  background: var(--color-white);
+}
+
+.taxonomy-select:focus {
+  border-color: var(--color-primary);
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(26, 111, 173, 0.15);
 }
 
 .subject-chips {

@@ -21,7 +21,7 @@ export default function QuestionBody({ question, selectedChoiceId, onSelectChoic
             const isSelected = selectedChoiceId === choice.id;
             const isCorrect = choice.id === question.correctAnswerId;
             
-            // Dynamic classes for Tutor Mode
+            // Dynamic classes for revealed-answer state
             let choiceClass = 'choice-item';
             if (isSelected) choiceClass += ' selected';
             if (isAnswerRevealed) {

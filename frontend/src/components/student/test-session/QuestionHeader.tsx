@@ -1,16 +1,18 @@
 import { Clock, Flag, LayoutGrid, Calculator, BookOpen } from 'lucide-react';
+import type { TestMode } from '../../../data/createTest'
 
 interface QuestionHeaderProps {
   currentIndex: number;
   totalQuestions: number;
+  mode: TestMode
   onEndBlock: () => void;
 }
 
-export default function QuestionHeader({ currentIndex, totalQuestions, onEndBlock }: QuestionHeaderProps) {
+export default function QuestionHeader({ currentIndex, totalQuestions, mode, onEndBlock }: QuestionHeaderProps) {
   return (
     <div className="test-header">
       <div className="test-header-left">
-        <span className="exam-mode-badge"><BookOpen size={16} /> Tutor Mode</span>
+        <span className="exam-mode-badge"><BookOpen size={16} /> {mode} Mode</span>
         <span className="question-counter">Question {currentIndex + 1} of {totalQuestions}</span>
       </div>
       

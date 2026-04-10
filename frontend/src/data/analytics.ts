@@ -34,7 +34,7 @@ export interface TestHistoryRow {
   id: string
   date: string
   subjectFocus: string
-  mode: 'Tutor' | 'Timed' | 'Mock'
+  mode: 'Roadmap' | 'Custom' | 'Mock'
   score: number
   duration: string
 }
@@ -111,9 +111,9 @@ export const performanceHeatmap: HeatmapRow[] = [
 ]
 
 export const testHistory: TestHistoryRow[] = [
-  { id: 't1', date: 'Apr 04', subjectFocus: 'Cardio Pharm', mode: 'Tutor', score: 80, duration: '52m' },
-  { id: 't2', date: 'Apr 03', subjectFocus: 'Renal Physiology', mode: 'Timed', score: 68, duration: '47m' },
+  { id: 't1', date: 'Apr 04', subjectFocus: 'Cardio Pharm', mode: 'Roadmap', score: 80, duration: '52m' },
+  { id: 't2', date: 'Apr 03', subjectFocus: 'Renal Physiology', mode: 'Custom', score: 68, duration: '47m' },
   { id: 't3', date: 'Apr 01', subjectFocus: 'Mixed Block', mode: 'Mock', score: 71, duration: '110m' },
-  { id: 't4', date: 'Mar 30', subjectFocus: 'Immunology', mode: 'Tutor', score: 62, duration: '41m' },
-  { id: 't5', date: 'Mar 28', subjectFocus: 'Pathology', mode: 'Timed', score: 77, duration: '50m' },
+  { id: 't4', date: 'Mar 30', subjectFocus: 'Immunology', mode: 'Roadmap', score: 62, duration: '41m' },
+  { id: 't5', date: 'Mar 28', subjectFocus: 'Pathology', mode: 'Custom', score: 77, duration: '50m' },
 ]
