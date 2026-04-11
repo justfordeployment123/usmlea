@@ -36,7 +36,7 @@ export default function AiTutorPage() {
     {
       id: 'm1',
       role: 'assistant',
-      text: 'Hi! I am your AI Tutor. Ask me anything about your current USMLE roadmap topics.',
+      text: 'Hi! I am your Tutor. Ask me anything about your current USMLE roadmap topics.',
     },
   ])
   const [query, setQuery] = useState('')
@@ -72,8 +72,8 @@ export default function AiTutorPage() {
   return (
     <div className="ai-tutor-page">
       <div className="page-header" style={{ marginBottom: '1.5rem' }}>
-        <h1>AI Tutor</h1>
-        <p>RAG-style tutoring with evidence panel and linked learning resources.</p>
+        <h1>Tutor</h1>
+        <p>Guided tutoring with evidence panel and linked learning resources.</p>
       </div>
 
       <div className="tutor-layout">

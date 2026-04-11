@@ -57,7 +57,7 @@ export default function App() {
                   <Route path="/student/qbank" element={<CreateTestPage />} />
                   <Route path="/student/test-session" element={<TestSessionPage />} />
                   <Route path="/student/test-review" element={<TestReviewPage />} />
-                  <Route path="/student/ai-tutor" element={<AiTutorPage />} />
+                  <Route path="/student/tutor" element={<AiTutorPage />} />
                   <Route path="/student/content" element={<ContentHubPage />} />
                   <Route path="/student/comments" element={<CommentsPage />} />
                   <Route path="/student/inbox" element={<InboxPage />} />

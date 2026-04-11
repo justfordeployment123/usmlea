@@ -10,7 +10,7 @@ export default function AiInsightCard({ data }: Props) {
       <div className="ai-insight-card__header">
         <div className="ai-insight-badge">
           <Brain size={14} />
-          AI Insight
+          Insight
         </div>
         <span className="ai-insight-card__subject">{data.aiInsightSubject}</span>
       </div>

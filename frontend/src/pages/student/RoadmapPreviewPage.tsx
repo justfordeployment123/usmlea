@@ -118,13 +118,13 @@ export default function RoadmapPreviewPage() {
           </div>
         </div>
 
-        {/* AI Insights */}
+        {/* Insights */}
         <div className="roadmap-insights">
           <div className="insight-icon">
             <TrendingUp size={24} />
           </div>
           <div>
-            <h3>AI has prioritized your weak areas:</h3>
+            <h3>Your weak areas have been prioritized:</h3>
             <ul className="priority-list">
               {summary.prioritizedSubjects.map(sub => (
                 <li key={sub.name}>

@@ -42,7 +42,7 @@ export interface StudentDashboardData {
   roadmapTotalWeeks: number
   roadmapSessionsRemaining: number
   roadmapCompletionPercent: number
-  // AI
+  // Insight
   aiInsight: string
   aiInsightSubject: string
   aiInsightVideoTitle: string

@@ -61,7 +61,7 @@ export const ADMIN_ACTIVITY_FEED: ActivityItem[] = [
   { id: 'a2', message: 'Noah Khan joined the platform on Pro Monthly plan', timeAgo: '12m ago', severity: 'normal' },
   { id: 'a3', message: 'Liam Jones has not logged in for 7 days', timeAgo: '2h ago', severity: 'alert' },
   { id: 'a4', message: 'Comment moderation queue reached 14 pending items', timeAgo: '3h ago', severity: 'alert' },
-  { id: 'a5', message: 'Daily AI inference latency improved to 0.84s avg', timeAgo: '4h ago', severity: 'normal' },
+  { id: 'a5', message: 'Daily tutor response latency improved to 0.84s avg', timeAgo: '4h ago', severity: 'normal' },
 ]
 
 export const AT_RISK_STUDENTS: RiskStudent[] = [

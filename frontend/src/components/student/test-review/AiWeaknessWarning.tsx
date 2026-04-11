@@ -10,7 +10,7 @@ export default function AiWeaknessWarning({ weakestTopicLabel, scopeLabel }: AiW
     <div className="card ai-warning-card">
       <div className="ai-warning-header">
         <Bot size={24} />
-        <h3>AI Adaptive Diagnostic</h3>
+        <h3>Adaptive Diagnostic</h3>
       </div>
       
       <div className="warning-content">

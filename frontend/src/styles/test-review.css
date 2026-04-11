@@ -88,7 +88,7 @@
 .text-warning { color: #F39C12; }
 .text-primary { color: var(--color-primary); }
 
-/* AI Warning */
+/* Diagnostic Warning */
 .ai-warning-card {
   border: 2px solid var(--color-primary);
   background: var(--color-surface-blue);

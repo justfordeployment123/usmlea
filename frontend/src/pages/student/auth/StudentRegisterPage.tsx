@@ -54,7 +54,7 @@ export default function StudentRegisterPage() {
           <img src="/logo.png" alt="NextGen USMLE" className="auth-logo" />
           <h1 className="auth-left__heading">Start Your Journey</h1>
           <p className="auth-left__sub">
-            Join thousands of medical students using AI-powered tools to prepare smarter for USMLE Step 1.
+            Join thousands of medical students using proven tools to prepare smarter for USMLE Step 1.
           </p>
           <div className="auth-left__stats">
             <div className="auth-stat">

@@ -281,7 +281,7 @@ export default function AnalyticsPage() {
           <div className="card ai-diagnosis-box analytics-matrix-banner">
             <Brain size={20} color="#E74C3C" />
             <div className="ai-diagnosis-text">
-              <strong>AI Analysis:</strong> The lowest area is <strong>{avgWeakCell.subtopic}</strong> at{' '}
+              <strong>Analysis:</strong> The lowest area is <strong>{avgWeakCell.subtopic}</strong> at{' '}
               <strong>{avgWeakCell.score}%</strong>. Pattern suggests a clinical reasoning gap. Recommended action:
               complete 15 focused mixed stems and review the linked video segment.
             </div>

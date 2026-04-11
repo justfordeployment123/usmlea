@@ -12,7 +12,7 @@ export default function TutorExplanationDrawer({ question, isOpen }: TutorExplan
   return (
     <div className="tutor-drawer animate-slide-up">
       <div className="tutor-header">
-        <div className="tutor-title"><Bot size={20} /> AI Tutor Explanation</div>
+        <div className="tutor-title"><Bot size={20} /> Tutor Explanation</div>
         <div className="tutor-tags">
           <span className="subject-tag">{question.subjectLabel}</span>
           <span className="topic-tag">{question.topicLabel}</span>

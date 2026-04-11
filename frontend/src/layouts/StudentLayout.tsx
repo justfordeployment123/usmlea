@@ -14,7 +14,7 @@ const NAV_ITEMS = [
   { to: '/student/dashboard',   icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/student/roadmap',     icon: Map,             label: 'My Roadmap' },
   { to: '/student/qbank',       icon: BookOpen,        label: 'Create Test' },
-  { to: '/student/ai-tutor',    icon: Bot,             label: 'AI Tutor' },
+  { to: '/student/tutor',       icon: Bot,             label: 'Tutor' },
   { to: '/student/content',     icon: Library,         label: 'Content Hub' },
   { to: '/student/comments',    icon: MessageSquare,   label: 'Comments' },
   { to: '/student/inbox',       icon: Inbox,           label: 'Inbox' },
