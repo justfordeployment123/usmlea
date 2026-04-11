@@ -1,4 +1,4 @@
-import { Bot, AlertCircle } from 'lucide-react';
+import { AlertCircle } from 'lucide-react';
 
 interface AiWeaknessWarningProps {
   weakestTopicLabel: string
@@ -9,7 +9,7 @@ export default function AiWeaknessWarning({ weakestTopicLabel, scopeLabel }: AiW
   return (
     <div className="card ai-warning-card">
       <div className="ai-warning-header">
-        <Bot size={24} />
+        <AlertCircle size={24} />
         <h3>Adaptive Diagnostic</h3>
       </div>
       

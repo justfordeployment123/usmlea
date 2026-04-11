@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Bot, Send, User, FileText, PlayCircle } from 'lucide-react'
+import { Send, User, FileText, PlayCircle, BookOpen } from 'lucide-react'
 import '../../styles/ai-tutor.css'
 
 type ChatRole = 'user' | 'assistant'
@@ -84,7 +84,7 @@ export default function AiTutorPage() {
                 key={message.id}
                 className={`chat-bubble-container ${message.role === 'user' ? 'is-user' : ''}`}
               >
-                <div className="bubble-avatar">{message.role === 'user' ? <User size={16} /> : <Bot size={16} />}</div>
+                <div className="bubble-avatar">{message.role === 'user' ? <User size={16} /> : <BookOpen size={16} />}</div>
                 <div className="chat-bubble">{message.text}</div>
               </div>
             ))}
@@ -92,7 +92,7 @@ export default function AiTutorPage() {
             {typing && (
               <div className="chat-bubble-container">
                 <div className="bubble-avatar">
-                  <Bot size={16} />
+                  <BookOpen size={16} />
                 </div>
                 <div className="chat-bubble typing-indicator">
                   <span>•</span>
@@ -125,7 +125,7 @@ export default function AiTutorPage() {
         <aside className="card rag-context-panel">
           {!latestAssistant ? (
             <div className="empty-context">
-              <Bot size={30} className="mb-4" />
+              <BookOpen size={30} className="mb-4" />
               <h3>No context yet</h3>
               <p>Ask a question to retrieve linked sources and timestamped references.</p>
             </div>

@@ -1,5 +1,5 @@
 import type { MCQQuestion } from '../../../data/questions';
-import { Bot, PlayCircle, BookOpen } from 'lucide-react';
+import { PlayCircle, BookOpen } from 'lucide-react';
 
 interface TutorExplanationDrawerProps {
   question: MCQQuestion;
@@ -12,7 +12,7 @@ export default function TutorExplanationDrawer({ question, isOpen }: TutorExplan
   return (
     <div className="tutor-drawer animate-slide-up">
       <div className="tutor-header">
-        <div className="tutor-title"><Bot size={20} /> Tutor Explanation</div>
+        <div className="tutor-title"><BookOpen size={20} /> Tutor Explanation</div>
         <div className="tutor-tags">
           <span className="subject-tag">{question.subjectLabel}</span>
           <span className="topic-tag">{question.topicLabel}</span>
