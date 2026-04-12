@@ -3,7 +3,7 @@ import { NavLink, useNavigate, Outlet } from 'react-router-dom'
 import {
   LayoutDashboard, Map, BookOpen, Library,
   BarChart2, Trophy, Users, FileText, MessageSquare, LogOut,
-  ChevronLeft, ChevronRight, Bell, Search, Menu, Inbox
+  ChevronLeft, ChevronRight, Bell, Search, Menu, Inbox, Layers
 } from 'lucide-react'
 import { useStudentAuth } from '../context/StudentAuthContext'
 import { useAnnouncements } from '../context/AnnouncementContext'
@@ -18,6 +18,7 @@ const NAV_ITEMS = [
   { to: '/student/content',     icon: Library,         label: 'Content Hub' },
   { to: '/student/comments',    icon: MessageSquare,   label: 'Comments' },
   { to: '/student/inbox',       icon: Inbox,           label: 'Inbox' },
+  { to: '/student/flashcards',  icon: Layers,          label: 'Flashcards' },
   { to: '/student/analytics',   icon: BarChart2,       label: 'Analytics' },
   { to: '/student/leaderboard', icon: Trophy,          label: 'Leaderboard' },
   { to: '/student/partners',    icon: Users,           label: 'Study Partners' },

@@ -6,6 +6,7 @@ import StudentLayout from './layouts/StudentLayout'
 import AdminLayout from './layouts/AdminLayout'
 import StudentProtectedRoute from './components/routing/StudentProtectedRoute'
 import AdminProtectedRoute from './components/routing/AdminProtectedRoute'
+import LandingPage from './pages/LandingPage'
 
 import StudentLoginPage    from './pages/student/auth/StudentLoginPage'
 import StudentRegisterPage from './pages/student/auth/StudentRegisterPage'
@@ -23,6 +24,7 @@ import StudyPartnersPage   from './pages/student/StudyPartnersPage'
 import NotesPage           from './pages/student/NotesPage'
 import CommentsPage        from './pages/student/CommentsPage'
 import InboxPage           from './pages/student/InboxPage'
+import FlashcardsPage      from './pages/student/FlashcardsPage'
 import AdminLoginPage      from './pages/admin/auth/AdminLoginPage'
 import AdminDashboardPage  from './pages/admin/AdminDashboardPage'
 import AdminStudentsPage   from './pages/admin/AdminStudentsPage'
@@ -38,8 +40,8 @@ export default function App() {
         <AdminAuthProvider>
           <AnnouncementProvider>
             <Routes>
-              {/* Default → student login */}
-              <Route path="/" element={<Navigate to="/student/login" replace />} />
+              {/* Public landing page */}
+              <Route path="/" element={<LandingPage />} />
 
               {/* Student Auth (No Layout) */}
               <Route path="/student/login" element={<StudentLoginPage />} />
@@ -61,6 +63,7 @@ export default function App() {
                   <Route path="/student/content" element={<ContentHubPage />} />
                   <Route path="/student/comments" element={<CommentsPage />} />
                   <Route path="/student/inbox" element={<InboxPage />} />
+                  <Route path="/student/flashcards" element={<FlashcardsPage />} />
                   <Route path="/student/analytics" element={<AnalyticsPage />} />
                   <Route path="/student/leaderboard" element={<LeaderboardPage />} />
                   <Route path="/student/partners" element={<StudyPartnersPage />} />
@@ -85,7 +88,7 @@ export default function App() {
               </Route>
 
               {/* 404 fallback */}
-              <Route path="*" element={<Navigate to="/student/login" replace />} />
+              <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </AnnouncementProvider>
         </AdminAuthProvider>
