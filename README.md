@@ -5,6 +5,36 @@ It covers every mathematical formula, database interaction, security protocol, A
 
 ---
 
+## DOCUMENT REALITY STATUS (FRONTEND DEEP SYNC — 2026-04-20)
+
+This README is the **full-system target specification** for backend implementation.
+Current codebase reality is that frontend flows are implemented using simulated/local data, while backend remains to be built.
+
+How to use this document for backend development:
+- Treat Chapters 1–19 as the production target contract (data model, APIs, services, security, ops).
+- Treat the frontend-current sections (especially Sections 20 and 21) as integration constraints and migration notes.
+- Build backend contracts to preserve frontend route/component behavior while replacing dummy/local data paths with APIs.
+
+Status labels used throughout this document:
+- `[FRONTEND IMPLEMENTED (SIMULATED/LOCAL DATA)]`
+- `[FRONTEND PARTIAL (SIMULATED/LOCAL DATA)]`
+- `[BACKEND NOT IMPLEMENTED — BLUEPRINT ONLY]`
+
+Chapter-level reality map:
+- Ch. 1 → 10: `[BACKEND NOT IMPLEMENTED — BLUEPRINT ONLY]`
+- Ch. 11 (Notes): `[FRONTEND PARTIAL (SIMULATED/LOCAL DATA)]` (UI exists, but no backend persistence yet)
+- Ch. 12 (Student Analytics): `[FRONTEND PARTIAL (SIMULATED/LOCAL DATA)]` (route/UI/formulas implemented on mock attempts)
+- Ch. 12 Real-Time Admin Monitoring plan: `[BACKEND NOT IMPLEMENTED — BLUEPRINT ONLY]`
+- Ch. 13 (Video Progress): `[BACKEND NOT IMPLEMENTED — BLUEPRINT ONLY]`
+- Ch. 14 (Document Progress): `[BACKEND NOT IMPLEMENTED — BLUEPRINT ONLY]`
+- Ch. 15 (Admin Student Ops): `[FRONTEND PARTIAL (SIMULATED/LOCAL DATA)]` (admin pages + local/mock data)
+- Ch. 16 (Admin Metrics/Financials/Comments): `[FRONTEND PARTIAL (SIMULATED/LOCAL DATA)]` (UI and analytics model exist; backend absent)
+- Ch. 17 (Taxonomy Analytics): `[FRONTEND PARTIAL (SIMULATED/LOCAL DATA)]` (taxonomy-driven filtering exists in UI)
+- Ch. 18 (Admin Announcements + Inbox): `[FRONTEND IMPLEMENTED (SIMULATED/LOCAL DATA)]` for UI/context/localStorage mode; backend not implemented
+- Ch. 19 (Tiered Subscriptions + Demo Trial): `[FRONTEND IMPLEMENTED (SIMULATED/LOCAL DATA)]` for local entitlement engine + feature gating; backend not implemented
+
+---
+
 ## CHAPTER 1: EXECUTIVE SUMMARY & PLATFORM PHILOSOPHY
 
 ### 1.1 The Vision
@@ -68,7 +98,7 @@ You must explicitly implement these tables in your Supabase PostgreSQL instance.
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 CREATE TYPE role_type AS ENUM ('student', 'admin');
-CREATE TYPE subscription_tier AS ENUM ('free', 'pro_monthly', 'elite_annual');
+CREATE TYPE subscription_tier AS ENUM ('demo', 'basic', 'standard', 'premium');
 
 CREATE TABLE users (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -77,7 +107,7 @@ CREATE TABLE users (
     first_name VARCHAR(100) NOT NULL,
     last_name VARCHAR(100) NOT NULL,
     role role_type DEFAULT 'student',
-    tier subscription_tier DEFAULT 'free',
+    tier subscription_tier DEFAULT 'demo',
     target_exam VARCHAR(100) DEFAULT 'USMLE Step 1',
     exam_target_date DATE NOT NULL,
     stripe_customer_id VARCHAR(255) UNIQUE, 
@@ -216,6 +246,12 @@ If a student disappears for 3 days due to illness:
 
 ## CHAPTER 6: GLOBAL GAMIFICATION AND ANALYTICS
 
+Current frontend reality snapshot:
+- Leaderboard and analytics views exist in UI routes, but are driven by local/mock datasets.
+- No Redis integration exists in current frontend code.
+- No backend leaderboard fetch path is wired yet.
+- Student analytics formulas are implemented client-side in `frontend/src/pages/student/AnalyticsPage.tsx`.
+
 ### 6.1 The Leaderboard Engine (Redis)
 Ordering 50,000 students via SQL `ORDER BY points DESC` destroys relational database performance. 
 -   **Awarding XP:** When a task is marked 'completed', the backend fires an `O(1)` command to Redis: `ZINCRBY nextgen_global_board 50 user_uuid`.
@@ -231,7 +267,13 @@ To populate the circular CSS Donut Rings in `DashboardPage.tsx`:
 
 ## CHAPTER 7: PEER MATCHMAKING ENGINE
 
-In `PartnersPage.tsx`, mentors and peers are paired optimally.
+Current frontend reality snapshot:
+- Study partners UX is implemented in `frontend/src/pages/student/StudyPartnersPage.tsx`.
+- Matching and connected lists are loaded from static data (`frontend/src/data/students.ts`).
+- Consent/reveal behavior is simulated locally in component state.
+- No backend matchmaking, scheduling job, or encrypted contact exchange is currently wired.
+
+In `StudyPartnersPage.tsx`, mentors and peers are paired optimally.
 
 ### 7.1 The Distance Heuristics Matrix
 A Cron Job executes every night at 3:00 AM UTC. It loops through all `users` where `opt_in_matchmaking = TRUE` and derives a Compatibility Score (Max 100).
@@ -248,17 +290,17 @@ Contact numbers are physically encrypted in the database.
 
 ## CHAPTER 8: FIN-TECH & INTELLECTUAL PROPERTY SECURITY
 
-The absolute core of the business is the Content Hub. We cannot let a free user access premium videos. 
+The absolute core of the business is the Content Hub. We cannot let an unentitled/demo user access premium videos. 
 
 ### 8.1 JWT Roles & Stripe Webhooks
-1.  When a user pays the $49.00 fee on Stripe's Checkout Portal, Stripe fires a POST request to your backend `/api/webhooks/stripe`.
+1.  When a user completes plan checkout on Stripe, Stripe fires a POST request to your backend `/api/v1/webhooks/stripe`.
 2.  The backend confirms cryptographic signatures from Stripe.
-3.  It updates the database table directly: `UPDATE users SET tier = 'pro_monthly'`.
-4.  The user's next authenticated login issues them a secure JWT explicitly carrying the `tier='pro_monthly'` payload.
+3.  It updates the database table directly: `UPDATE users SET tier = 'standard'` (or chosen paid plan).
+4.  The user's next authenticated login issues them a secure JWT explicitly carrying the current plan payload.
 
 ### 8.2 Security Guard Middleware
 Every request from the React app sends this JWT. Your Express API intercepts the request immediately.
--   If the API routes to `/api/v1/content/videos` and reads the JWT payload `tier='free'`, the API abruptly terminates the call with a `403 Forbidden` status. The database is never even queried.
+-   If the API routes to `/api/v1/content/videos` and reads a plan without required grants (e.g., `tier='demo'`), the API abruptly terminates the call with a `403 Forbidden` status. The database is never even queried.
 
 ### 8.3 The Self-Destructing Media Files
 If a premium student tries to scrape a video and leak the URL online:
@@ -272,7 +314,13 @@ If a premium student tries to scrape a video and leak the URL online:
 
 ## CHAPTER 9: THE ADMINISTRATIVE COMMAND CENTER (OVERSIGHT & MODERATION)
 
-The Admin Portal (`/admin`) is a completely separate high-security environment designed for platform owners to manage the business, monitor system health, and enforce community standards. It is composed of four distinct, high-performance modules.
+Current frontend reality snapshot:
+- Admin routes implemented: `/admin/dashboard`, `/admin/students`, `/admin/metrics`, `/admin/financials`, `/admin/comments`, `/admin/announcements`, `/admin/billing`.
+- Admin authentication is localStorage-based demo auth (`admin@nextgen.com` / `admin123`) via `AdminAuthContext`.
+- Metrics/financial panels are currently simulation-first (local data + derived frontend models), not live backend telemetry.
+- Comment moderation supports `visible|hidden` toggling in frontend demo mode with local action-history state.
+
+The Admin Portal (`/admin`) is a completely separate high-security environment designed for platform owners to manage the business, monitor system health, and enforce community standards. It is composed of multiple high-performance modules.
 
 ### 9.1 The Executive Dashboard (Global Telemetry)
 The Admin Dashboard provides a bird's-eye view of the entire NextGen ecosystem. It does not focus on individual users, but on system-wide health.
@@ -283,12 +331,12 @@ The Admin Dashboard provides a bird's-eye view of the entire NextGen ecosystem. 
 ### 9.2 Student Management (The CRM Hub)
 The **Students** tab serves as the platform's internal CRM. It allows administrators to search, filter, and drill down into every registered account.
 - **User Records:** Displays the student's name, email, subscription tier, and "Last Active" timestamp.
-- **Administrative Actions:** From this UI, an Admin can manually override a student's tier (e.g., granting a 7-day 'Elite' trial for support reasons), reset passwords, or ban users who violate terms of service.
-- **Architecture:** This page uses a **Virtualized Table** to handle thousands of rows efficiently, ensuring the browser doesn't lag even if the platform has 100,000+ registered medical students.
+- **Administrative Actions:** From this UI, an Admin can manually override a student's tier (e.g., granting temporary `premium` access for support reasons), reset passwords, or ban users who violate terms of service.
+- **Architecture (production target):** This page should use a scalable server-side pagination strategy and can optionally use virtualization for very large datasets.
 
 ### 9.3 The Financials Engine (MRR & LTV Tracking)
 This is the most critical business module. To maintain 100% accounting accuracy, it bypasses the local database and queries the **Stripe API** directly in real-time.
-- **Metric 1: Monthly Recurring Revenue (MRR):** Calculated by aggregating all active `pro_monthly` and `elite_annual` subscriptions via the `stripe.subscriptions.list` endpoint.
+- **Metric 1: Monthly Recurring Revenue (MRR):** Calculated by aggregating active paid plans (`basic`, `standard`, `premium`) via Stripe subscription state and internal subscription snapshots.
 - **Metric 2: Churn Rate:** The system monitors `customer.subscription.deleted` webhooks to track how many students are leaving vs. joining, displayed as a percentage.
 - **Metric 3: Lifetime Value (LTV):** An algorithmic estimation of how much a student will pay over their entire time on the platform.
 - **Visualization:** Data is piped into **Custom CSS Bar Charts** that allow the Admin to see growth trends over 30, 60, and 90-day windows.
@@ -302,9 +350,14 @@ The Moderation Hub is where the Admin enforces the platform's professional stand
 
 ---
 
-## 10. CONCLUSION
+## 10. CONCLUSION `[BLUEPRINT SUMMARY]`
 
 ## 11. NOTES PERSISTENCE CONTRACT
+
+Current frontend reality (`frontend/src/pages/student/NotesPage.tsx`):
+- Notes editor UX is implemented.
+- Data source is seeded in-memory from `frontend/src/data/notes.ts`.
+- Save/Pin/Delete currently update component state only (no API and no persistent storage layer yet).
 
 Backend should store note text in markdown form to preserve formatting and derive a plain text field for search.
 
@@ -322,6 +375,12 @@ Required fields in notes table:
 ## 12. STUDENT ANALYTICS PAGE — FULL FRONTEND/BACKEND/DB CONTRACT
 
 This section defines the complete architecture for the Student Analytics page (`/student/analytics`) including tab behavior, filter logic, backend contracts, data modeling, and aggregation formulas.
+
+Current frontend reality snapshot:
+- Analytics scope uses fixed exam context from `mockRoadmapContext` and does not expose exam switching in student UI.
+- Primary data source is `MOCK_STUDENT_ATTEMPTS` with client-side filtering/aggregation.
+- Taxonomy filter UI is live and enforces dependent reset behavior (`subject -> topic`).
+- No analytics API transport is currently wired.
 
 ### 12.1 Product Intent
 
@@ -2727,7 +2786,7 @@ CREATE TABLE announcements (
         id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
         title VARCHAR(220) NOT NULL,
         message TEXT NOT NULL,
-        created_by_admin_id UUID NOT NULL REFERENCES admin_users(id),
+    created_by_admin_id UUID NOT NULL REFERENCES users(id),
         status VARCHAR(20) NOT NULL DEFAULT 'published',
         published_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         expires_at TIMESTAMPTZ NULL,
@@ -2900,15 +2959,16 @@ SELECT
     a.title,
     a.message,
     a.published_at,
-    au.name AS created_by,
+    au.first_name || ' ' || au.last_name AS created_by,
     (ar.read_at IS NOT NULL) AS is_read,
     ar.read_at
 FROM announcements a
-JOIN admin_users au ON au.id = a.created_by_admin_id
+JOIN users au ON au.id = a.created_by_admin_id
 LEFT JOIN announcement_reads ar
     ON ar.announcement_id = a.id
  AND ar.student_id = :student_id
 WHERE a.status = 'published'
+    AND au.role = 'admin'
     AND a.deleted_at IS NULL
     AND (a.expires_at IS NULL OR a.expires_at > NOW())
 ORDER BY a.published_at DESC
@@ -3071,7 +3131,15 @@ This chapter is the authoritative specification for taking the current frontend-
 
 ### 19.1 Product Rules (Non-Negotiable)
 
-Source of truth is `docs/tiers.md` + current frontend UX.
+Source of truth for current implementation is frontend code:
+- `frontend/src/types/subscription.ts`
+- `frontend/src/services/subscription/subscriptionService.ts`
+- `frontend/src/services/subscription/localSubscriptionRepository.ts`
+- `frontend/src/context/SubscriptionContext.tsx`
+- `frontend/src/pages/admin/AdminBillingSettingsPage.tsx`
+- `frontend/src/components/billing/FeatureGate.tsx`
+
+Note: this chapter defines production backend contracts while preserving current frontend behavior.
 
 Plans:
 - **Demo Trial** (time-limited, auto-start on first login)
@@ -3085,8 +3153,9 @@ Core business behavior:
 3. Trial duration default is 7 days (admin editable).
 4. All paid plans (`basic`, `standard`, `premium`) are currently 30-day access windows in frontend mode.
 5. User can upgrade during trial or after expiry.
-6. After expiry, restricted resources are blocked by server-side entitlement.
-7. Frontend must show discoverable lock states and upgrade CTA, not silent hiding.
+6. Current frontend blocks restricted resources via `FeatureGate` + local entitlement snapshot.
+7. In production, backend entitlement must become final authority for all premium resource access.
+8. Frontend must show discoverable lock states and upgrade CTA, not silent hiding.
 
 ### 19.2 Target Production Architecture
 
@@ -3207,20 +3276,32 @@ CREATE TABLE trial_usage_counters (
 
 ### 19.5 Plan Access Matrix (Production Contract)
 
+Current frontend defaults from `DEFAULT_BILLING_SETTINGS`:
+- `demo`: `adaptive_limited`, `mock_exam_limited`
+- `basic`: `adaptive_limited`, `mock_exam_limited`
+- `standard`: `adaptive_limited`, `mock_exam_limited`, `analytics_basic`
+- `premium`: all configurable frontend gates (`adaptive_limited`, `mock_exam_limited`, `analytics_basic`, `peer_matching`, `leaderboard`)
+
+Admin can override tier feature toggles in `AdminBillingSettingsPage` for the configurable gate set.
+
 #### Demo Trial
-- Allowed: `adaptive_limited`, `mock_exam_limited` (quota), `analytics_basic`, `marathon_preview`
-- Locked: `mock_exam_full`, `analytics_advanced`, `peer_matching`, `leaderboard`, `marathon_full`, `priority_support`
+- Allowed (current default): `adaptive_limited`, `mock_exam_limited` (quota)
+- Locked by default: `analytics_basic`, `peer_matching`, `leaderboard`
+- Production extension options (when backend enables full matrix): `analytics_advanced`, `marathon_preview`, `marathon_full`, `priority_support`
 
 #### Basic
-- Allowed: `adaptive_limited`, `mock_exam_limited`, `marathon_preview`
-- Locked: `analytics_basic`, `analytics_advanced`, `peer_matching`, `leaderboard`, `marathon_full`, `priority_support`
+- Allowed (current default): `adaptive_limited`, `mock_exam_limited`
+- Locked by default: `analytics_basic`, `peer_matching`, `leaderboard`
+- Production extension options: `analytics_advanced`, `marathon_preview`, `marathon_full`, `priority_support`
 
 #### Standard
-- Allowed: full adaptive + full mocks + full analytics (`analytics_basic` + `analytics_advanced`)
-- Locked (Premium-only): `peer_matching`, `leaderboard`, `priority_support`
+- Allowed (current default): `adaptive_limited`, `mock_exam_limited`, `analytics_basic`
+- Locked by default: `peer_matching`, `leaderboard`
+- Production extension options: `adaptive_full`, `mock_exam_full`, `analytics_advanced`, `priority_support`
 
 #### Premium
-- All features unlocked.
+- Current frontend default: all configurable gates unlocked (`adaptive_limited`, `mock_exam_limited`, `analytics_basic`, `peer_matching`, `leaderboard`).
+- Production target: all canonical features unlocked.
 
 ### 19.6 Entitlement Resolution Algorithm (Server)
 
@@ -3229,8 +3310,8 @@ On each authenticated request:
 2. If none exists and user is first-time active session, create trial row.
 3. If `now > trial_ends_at` and plan is demo, transition status to `expired`.
 4. If `now > current_period_end` for paid plans, transition status to `expired`.
-4. Compute granted features using `plan_feature_grants` + trial status checks.
-5. Return signed entitlement payload to frontend.
+5. Compute granted features using `plan_feature_grants` + trial status checks.
+6. Return signed entitlement payload to frontend.
 
 Pseudo-shape returned by API:
 
@@ -3403,3 +3484,212 @@ Phase 4:
   - admin price update propagation
 
 This chapter is the production contract for subscriptions: if implemented as specified, frontend, backend, and DB will remain aligned and low-risk to evolve.
+
+---
+
+## 20. FRONTEND↔README DEEP SYNC AUDIT REPORT (2026-04-20)
+
+### 20.1 Phase Changelog (What Was Updated In-Place)
+
+Phase A — Global status labeling:
+- Added document-level status legend and chapter reality map.
+- Added explicit implementation-status labels to major chapter headers.
+
+Phase B — Accuracy corrections for active frontend domains:
+- Updated Chapter 11 with current notes reality (in-memory simulation, no backend persistence yet).
+- Updated Chapter 19 source-of-truth pointers to actual frontend files.
+- Corrected Chapter 19 behavior language to distinguish current frontend gating vs production server authority.
+- Corrected Chapter 19.5 access matrix to reflect current `DEFAULT_BILLING_SETTINGS` and configurable gate set.
+
+Phase C — Delivery/reporting:
+- Added this audit report section with changelog, out-of-scope list, definition of done, and coverage report.
+
+### 20.2 Removed / Marked Out-of-Scope (Current Frontend Reality)
+
+Not implemented in current frontend and therefore treated as blueprint-only:
+- Live backend integrations (Supabase/Redis/Stripe/Groq APIs).
+- JWT-authenticated server enforcement.
+- Production cron/reconciliation jobs.
+- Real DB-backed persistence for announcements, subscriptions, notes, analytics events.
+
+Still valid as backend implementation contracts (kept intentionally):
+- SQL schema proposals.
+- API contracts and payload shapes.
+- Security/observability/operational requirements.
+
+### 20.3 Definition of Done for This Sync Pass
+
+This deep sync pass is considered done when:
+1. Every major README chapter is explicitly labeled by implementation status.
+2. Current implemented frontend features are not described as already backend-live.
+3. Chapter 18 and Chapter 19 document current frontend behavior plus production cutover contracts.
+4. Contradictions against current route/context/service behavior are removed or clarified.
+
+### 20.4 Final Coverage Report
+
+Matched to current frontend (implemented or accurately marked partial):
+- Routing and gated pages in `frontend/src/App.tsx`.
+- Student/admin auth context behavior in `StudentAuthContext` and `AdminAuthContext`.
+- Announcement flow in `AnnouncementContext`, `AdminAnnouncementsPage`, `InboxPage`.
+- Subscription/trial engine in `SubscriptionContext`, `SubscriptionService`, `AdminBillingSettingsPage`, `FeatureGate`.
+- Student analytics UI/formulas in `AnalyticsPage` and related components.
+
+Missing in frontend (left as backend blueprint work):
+- Real API transport adapters for announcements/subscriptions/analytics/notes.
+- Persistent server-side entitlement and billing webhook processing.
+- Production-grade observability and reconciliation jobs.
+
+Result:
+- README is now aligned to current frontend state without full-file overwrite.
+- Backend teams can distinguish immediately between live frontend behavior and planned production contracts.
+
+---
+
+## 21. FRONTEND CHANGE LEDGER (ADDITIONS / REMOVALS / BEHAVIOR CHANGES)
+
+This ledger captures the larger set of concrete frontend changes so backend handoff has a granular implementation map.
+
+### 21.1 Routing and Surface Area Additions
+
+Implemented routes in `frontend/src/App.tsx` include:
+
+Student:
+- `/student/dashboard`
+- `/student/roadmap`
+- `/student/create-test`
+- `/student/qbank`
+- `/student/test-session`
+- `/student/test-review`
+- `/student/tutor`
+- `/student/content`
+- `/student/comments`
+- `/student/inbox`
+- `/student/flashcards`
+- `/student/analytics`
+- `/student/leaderboard`
+- `/student/partners`
+- `/student/notes`
+- `/student/upgrade`
+
+Admin:
+- `/admin/dashboard`
+- `/admin/students`
+- `/admin/metrics`
+- `/admin/financials`
+- `/admin/comments`
+- `/admin/announcements`
+- `/admin/billing`
+
+### 21.2 Authentication and Access Control Reality
+
+Student auth (`StudentAuthContext`):
+- Login accepts any non-empty email in demo mode.
+- Student profile persists to `localStorage` key `studentUser`.
+- Onboarding completion state is tracked locally.
+- Legacy tier migration logic maps prior values (e.g., `pro` -> `standard`, `elite` -> `premium`).
+
+Admin auth (`AdminAuthContext`):
+- Demo credential gate is hardcoded.
+- Persisted admin session uses `localStorage` key `adminUser`.
+
+Route protection:
+- `StudentProtectedRoute` redirects non-onboarded users to onboarding.
+- Expired plan snapshots redirect students to `/student/upgrade`.
+- `AdminProtectedRoute` guards all admin pages by local admin session state.
+
+### 21.3 Subscription, Billing, and Gate Behavior
+
+Current architecture:
+- Entitlements are resolved in frontend via `SubscriptionService` + `LocalSubscriptionRepository`.
+- Billing settings persist in `localStorage` and are editable via `/admin/billing`.
+- Cross-tab billing setting sync is implemented through `storage` event handling in `SubscriptionContext`.
+
+Observed business rules in current frontend code:
+- Demo trial defaults to 7 days (admin-configurable 1..30).
+- Paid plans are modeled as 30-day windows in simulation mode.
+- Demo mock exam quota is enforced (`1` in current implementation).
+- Feature gates for currently wired routes focus on:
+    - `adaptive_limited`
+    - `mock_exam_limited`
+    - `analytics_basic`
+    - `peer_matching`
+    - `leaderboard`
+
+### 21.4 Announcements and Inbox Additions
+
+Implemented behavior:
+- Admin broadcast creation and history in `/admin/announcements`.
+- Student inbox with per-student read/unread tracking in `/student/inbox`.
+- Read model uses localStorage-backed keys:
+    - `announcements.v1`
+    - `announcementReadsByStudent.v1`
+- Student topbar bell badge shows unread count from `AnnouncementContext`.
+
+### 21.5 Student Learning Module Reality
+
+Roadmap:
+- `/student/roadmap` currently uses hardcoded weekly plan data.
+- Timeline adjuster and onboarding-driven display are implemented in frontend.
+
+Test flow:
+- Create/test session/review are live in UI.
+- Submission currently builds local result payloads and navigates route-state, not backend writes.
+
+Analytics:
+- KPI/trend/heatmap/history derived from mock attempt dataset.
+- Taxonomy filtering is implemented client-side.
+
+Tutor:
+- `AiTutorPage` uses rotating preset responses and placeholder citation panel.
+- No live RAG/network inference path is currently wired.
+
+Content Hub:
+- Video/PDF preview UX implemented with placeholder/demo assets.
+- Client-side PDF dwell-time-based progress increment is simulated in component state.
+
+Flashcards:
+- Daily deck generation implemented via `flashcardsEngine` using mock attempt patterns.
+- Session progress and card status are local session state.
+
+Notes:
+- Rich note editing interactions are implemented.
+- Save/Pin/Delete are currently in-memory component updates (no backend persistence).
+
+### 21.6 Admin Module Reality
+
+Admin Overview (`/admin/dashboard`):
+- KPI + chart panels rendered from local `adminOverview` data.
+
+Student Insights (`/admin/students`):
+- Search/filter/detail drawer behavior implemented.
+- Tier grouping resolves dynamically from billing settings + simulated student records.
+
+Global Metrics (`/admin/metrics`):
+- Taxonomy-scoped simulated model derived from mock attempts via `simulatedAiEngine`.
+
+Financials (`/admin/financials`):
+- Revenue/MRR/plan-mix/invoice feed are currently dummy data panels.
+
+Comments Moderation (`/admin/comments` + `/student/comments`):
+- Frontend supports show/hide visibility workflow and local moderation action log.
+- Student comments page allows posting in demo mode and displays visible entries.
+
+### 21.7 Explicitly De-Scoped/Not Yet Wired (Important for Backend)
+
+Not implemented yet in current frontend integration layer:
+- Real API transport layer for major domains (auth, analytics, notes, announcements, billing).
+- Live provider webhook processing integration.
+- Server-authoritative entitlement checks from frontend requests.
+- Real-time sockets/SSE integration for admin operational streams.
+- Persistent server-side storage for most currently simulated module datasets.
+
+### 21.8 Backend Handoff Priority (Execution Order)
+
+Recommended high-impact backend wiring order:
+1. Subscription entitlement endpoints + billing settings endpoints (aligns route gates).
+2. Announcements inbox endpoints (already stable context contract).
+3. Test submission + analytics read endpoints (replace mock derivations).
+4. Notes persistence endpoints.
+5. Admin metrics/financial/comment moderation APIs with auditability.
+
+This ledger should be treated as the practical handoff delta between frontend simulation and production backend implementation.
