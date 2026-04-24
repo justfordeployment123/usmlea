@@ -1,0 +1,241 @@
+/* ─── Admin Teacher Management Styles ───────────────────────────────────── */
+
+.admin-teachers-page {
+  display: grid;
+  gap: 16px;
+}
+
+/* KPI Grid */
+.admin-teachers-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+
+.admin-teachers-kpi-card {
+  background: #fff;
+  border: 1px solid #d8e9f8;
+  border-radius: 14px;
+  padding: 14px;
+  position: relative;
+  overflow: hidden;
+}
+
+.admin-teachers-kpi-card--pending {
+  border-color: #fde68a;
+  background: #fffbeb;
+}
+
+.admin-teachers-kpi-card__label {
+  font-size: 0.78rem;
+  color: #6a86a7;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.admin-teachers-kpi-card--pending .admin-teachers-kpi-card__label {
+  color: #92400e;
+}
+
+.admin-teachers-kpi-card__value {
+  font-size: 1.6rem;
+  font-weight: 800;
+  color: #0d2d5e;
+  margin-top: 4px;
+  line-height: 1.1;
+}
+
+.admin-teachers-kpi-card--pending .admin-teachers-kpi-card__value {
+  color: #b45309;
+}
+
+.admin-teachers-kpi-card__sub {
+  font-size: 0.78rem;
+  color: #55789c;
+  margin-top: 2px;
+}
+
+.admin-teachers-kpi-card__icon {
+  float: right;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: #e8f3ff;
+  color: #1a6fad;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Section */
+.admin-teachers-section {
+  background: #fff;
+  border: 1px solid #d8e9f8;
+  border-radius: 14px;
+  padding: 16px;
+  display: grid;
+  gap: 12px;
+}
+
+.admin-teachers-section__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.admin-teachers-section__title {
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: #0d2d5e;
+  margin: 0;
+}
+
+/* Table */
+.admin-teachers-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.87rem;
+}
+
+.admin-teachers-table th {
+  text-align: left;
+  padding: 8px 12px;
+  color: #6a86a7;
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid #e8f0fb;
+}
+
+.admin-teachers-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid #f0f5fb;
+  color: #355a7f;
+  vertical-align: middle;
+}
+
+.admin-teachers-table tr:last-child td {
+  border-bottom: none;
+}
+
+.admin-teachers-table tr:hover td {
+  background: #fafcff;
+}
+
+/* Status badges */
+.admin-teachers-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.admin-teachers-badge--approved {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.admin-teachers-badge--pending {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+.admin-teachers-badge--suspended {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+/* Filter tabs */
+.admin-teachers-tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 2px solid #e8f0fb;
+  margin-bottom: 4px;
+}
+
+.admin-teachers-tab {
+  padding: 7px 14px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #6a86a7;
+  background: none;
+  border: none;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.admin-teachers-tab--active {
+  color: #1a6fad;
+  border-bottom-color: #1a6fad;
+}
+
+/* Empty state */
+.admin-teachers-empty {
+  text-align: center;
+  padding: 2.5rem;
+  color: #6a86a7;
+}
+
+/* Modal */
+.admin-teachers-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(3, 18, 38, 0.45);
+  z-index: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.admin-teachers-modal {
+  background: #fff;
+  border-radius: 16px;
+  padding: 1.5rem;
+  max-width: 460px;
+  width: 100%;
+  display: grid;
+  gap: 16px;
+}
+
+.admin-teachers-modal__title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #0d2d5e;
+  margin: 0;
+}
+
+/* Toast */
+.admin-teachers-toast {
+  position: fixed;
+  bottom: 1.5rem;
+  right: 1.5rem;
+  background: #0d2d5e;
+  color: #fff;
+  padding: 10px 16px;
+  border-radius: 10px;
+  font-size: 0.87rem;
+  font-weight: 600;
+  z-index: 600;
+  box-shadow: 0 4px 16px rgba(13, 45, 94, 0.25);
+}
+
+/* Responsive */
+@media (max-width: 900px) {
+  .admin-teachers-kpi-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 600px) {
+  .admin-teachers-kpi-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}

@@ -1,0 +1,230 @@
+.public-layout {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+}
+
+/* ─── Navbar ──────────────────────────────────────────────── */
+.public-nav {
+  height: 68px;
+  background: #fff;
+  border-bottom: 1px solid #e8f0fb;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 2rem;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  gap: 1rem;
+}
+
+.public-nav__brand {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  text-decoration: none;
+  flex-shrink: 0;
+}
+
+.public-nav__logo {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+}
+
+.public-nav__brand-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.public-nav__brand-text strong {
+  color: #0d2d5e;
+  font-size: 0.95rem;
+  font-weight: 800;
+  line-height: 1.1;
+}
+
+.public-nav__brand-text span {
+  font-size: 0.68rem;
+  color: #6a86a7;
+  font-weight: 500;
+}
+
+.public-nav__links {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.public-nav__link {
+  color: #355a7f;
+  text-decoration: none;
+  font-size: 0.875rem;
+  font-weight: 500;
+  padding: 0.45rem 0.75rem;
+  border-radius: 8px;
+  transition: all 0.15s ease;
+}
+
+.public-nav__link:hover {
+  color: #0d2d5e;
+  background: #f1f7ff;
+  text-decoration: none;
+}
+
+.public-nav__link--active {
+  color: #1a6fad;
+  background: #e8f3ff;
+  font-weight: 600;
+}
+
+.public-nav__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.public-nav__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.45rem 0.9rem;
+  border-radius: 8px;
+  font-size: 0.83rem;
+  font-weight: 600;
+  text-decoration: none;
+  transition: all 0.15s ease;
+  cursor: pointer;
+  border: none;
+}
+
+.public-nav__btn--outline {
+  background: transparent;
+  border: 1.5px solid #cde0f5;
+  color: #1a6fad;
+}
+
+.public-nav__btn--outline:hover {
+  background: #f0f8ff;
+  text-decoration: none;
+}
+
+.public-nav__btn--primary {
+  background: #1a6fad;
+  color: #fff;
+}
+
+.public-nav__btn--primary:hover {
+  background: #145a91;
+  text-decoration: none;
+}
+
+.public-nav__mobile-toggle {
+  display: none;
+  background: #f1f7ff;
+  border: none;
+  color: #0d2d5e;
+  border-radius: 8px;
+  width: 36px;
+  height: 36px;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+/* ─── Main content ────────────────────────────────────────── */
+.public-main {
+  flex: 1;
+}
+
+/* ─── Footer ──────────────────────────────────────────────── */
+.public-footer {
+  background: #0d2d5e;
+  color: #9fc1e4;
+  padding: 2.5rem 2rem 1.5rem;
+}
+
+.public-footer__inner {
+  max-width: 1100px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: 1.5fr repeat(2, 1fr);
+  gap: 2rem;
+}
+
+.public-footer__brand-text strong {
+  display: block;
+  color: #fff;
+  font-size: 1rem;
+  font-weight: 800;
+  margin-bottom: 0.35rem;
+}
+
+.public-footer__brand-text p {
+  font-size: 0.82rem;
+  line-height: 1.6;
+  color: #7ea8cc;
+  margin: 0;
+  max-width: 240px;
+}
+
+.public-footer__col h4 {
+  color: #fff;
+  font-size: 0.85rem;
+  font-weight: 700;
+  margin: 0 0 0.75rem;
+}
+
+.public-footer__col ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.public-footer__col ul li a {
+  color: #7ea8cc;
+  text-decoration: none;
+  font-size: 0.82rem;
+  transition: color 0.15s;
+}
+
+.public-footer__col ul li a:hover {
+  color: #fff;
+}
+
+.public-footer__bottom {
+  max-width: 1100px;
+  margin: 2rem auto 0;
+  padding-top: 1.25rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 0.78rem;
+  color: #5a82a8;
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+@media (max-width: 768px) {
+  .public-nav {
+    padding: 0 1rem;
+  }
+
+  .public-nav__links {
+    display: none;
+  }
+
+  .public-nav__mobile-toggle {
+    display: inline-flex;
+  }
+
+  .public-footer__inner {
+    grid-template-columns: 1fr;
+  }
+}

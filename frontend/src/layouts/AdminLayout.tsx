@@ -13,6 +13,9 @@ import {
   X,
   Shield,
   Link2,
+  UserCheck,
+  Package,
+  Video,
 } from 'lucide-react'
 import { useAdminAuth } from '../context/AdminAuthContext'
 import './AdminLayout.css'
@@ -26,6 +29,9 @@ const ADMIN_NAV_ITEMS = [
   { to: '/admin/announcements', label: 'Announcements', icon: Megaphone },
   { to: '/admin/billing', label: 'Billing & Trial', icon: Settings },
   { to: '/admin/affiliates', label: 'Affiliates', icon: Link2 },
+  { to: '/admin/teachers', label: 'Teachers', icon: UserCheck },
+  { to: '/admin/products', label: 'LMS Products', icon: Package },
+  { to: '/admin/lms-sessions', label: 'LMS Sessions', icon: Video },
 ]
 
 export default function AdminLayout() {

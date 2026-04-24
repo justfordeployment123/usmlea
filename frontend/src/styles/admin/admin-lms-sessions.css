@@ -1,0 +1,300 @@
+/* ─── Admin LMS Sessions Management Styles ──────────────────────────────── */
+
+.admin-lms-sessions-page {
+  display: grid;
+  gap: 16px;
+}
+
+/* KPI Grid */
+.admin-lms-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+
+.admin-lms-kpi-card {
+  background: #fff;
+  border: 1px solid #d8e9f8;
+  border-radius: 14px;
+  padding: 14px;
+  position: relative;
+  overflow: hidden;
+}
+
+.admin-lms-kpi-card--live {
+  border-color: #bbf7d0;
+  background: linear-gradient(135deg, #f0fdf4, #dcfce7);
+}
+
+.admin-lms-kpi-card__label {
+  font-size: 0.78rem;
+  color: #6a86a7;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.admin-lms-kpi-card--live .admin-lms-kpi-card__label {
+  color: #166534;
+}
+
+.admin-lms-kpi-card__value {
+  font-size: 1.6rem;
+  font-weight: 800;
+  color: #0d2d5e;
+  margin-top: 4px;
+  line-height: 1.1;
+}
+
+.admin-lms-kpi-card--live .admin-lms-kpi-card__value {
+  color: #15803d;
+}
+
+.admin-lms-kpi-card__sub {
+  font-size: 0.78rem;
+  color: #55789c;
+  margin-top: 2px;
+}
+
+.admin-lms-kpi-card__icon {
+  float: right;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: #e8f3ff;
+  color: #1a6fad;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.admin-lms-kpi-card--live .admin-lms-kpi-card__icon {
+  background: #dcfce7;
+  color: #16a34a;
+}
+
+/* Live Banner */
+@keyframes lms-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.admin-lms-live-banner {
+  background: linear-gradient(135deg, #16a34a, #15803d);
+  color: #fff;
+  border-radius: 12px;
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.admin-lms-live-banner__pulse {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #fff;
+  animation: lms-pulse 1.5s infinite;
+  flex-shrink: 0;
+}
+
+.admin-lms-live-banner__label {
+  font-weight: 800;
+  font-size: 0.87rem;
+}
+
+.admin-lms-live-banner__sessions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  flex: 1;
+}
+
+.admin-lms-live-session-chip {
+  background: rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+/* Section */
+.admin-lms-section {
+  background: #fff;
+  border: 1px solid #d8e9f8;
+  border-radius: 14px;
+  padding: 16px;
+  display: grid;
+  gap: 12px;
+}
+
+.admin-lms-section__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.admin-lms-section__title {
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: #0d2d5e;
+  margin: 0;
+}
+
+/* Table */
+.admin-lms-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.87rem;
+}
+
+.admin-lms-table th {
+  text-align: left;
+  padding: 8px 12px;
+  color: #6a86a7;
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid #e8f0fb;
+}
+
+.admin-lms-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid #f0f5fb;
+  color: #355a7f;
+  vertical-align: middle;
+}
+
+.admin-lms-table tr:last-child td {
+  border-bottom: none;
+}
+
+.admin-lms-table tr:hover td {
+  background: #fafcff;
+}
+
+/* Status Badges */
+.admin-lms-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.admin-lms-badge--live {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.admin-lms-badge--scheduled {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.admin-lms-badge--completed {
+  background: #f3f4f6;
+  color: #6b7280;
+}
+
+.admin-lms-badge--cancelled {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+/* Filter bar */
+.admin-lms-filter-bar {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.admin-lms-filter-btn {
+  padding: 5px 12px;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid #e8f0fb;
+  background: transparent;
+  color: #6a86a7;
+  transition: all 0.15s;
+}
+
+.admin-lms-filter-btn--active {
+  background: #1a6fad;
+  color: #fff;
+  border-color: #1a6fad;
+}
+
+/* Modal */
+.admin-lms-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(3, 18, 38, 0.45);
+  z-index: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.admin-lms-modal {
+  background: #fff;
+  border-radius: 16px;
+  padding: 1.5rem;
+  max-width: 560px;
+  width: 100%;
+  display: grid;
+  gap: 16px;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.admin-lms-modal__title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #0d2d5e;
+  margin: 0;
+}
+
+/* Toast */
+.admin-lms-toast {
+  position: fixed;
+  bottom: 1.5rem;
+  right: 1.5rem;
+  background: #0d2d5e;
+  color: #fff;
+  padding: 10px 16px;
+  border-radius: 10px;
+  font-size: 0.87rem;
+  font-weight: 600;
+  z-index: 600;
+  box-shadow: 0 4px 16px rgba(13, 45, 94, 0.25);
+}
+
+/* Empty State */
+.admin-lms-empty {
+  text-align: center;
+  padding: 2.5rem;
+  color: #6a86a7;
+}
+
+/* Responsive */
+@media (max-width: 900px) {
+  .admin-lms-kpi-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 600px) {
+  .admin-lms-kpi-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}

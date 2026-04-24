@@ -1,7 +1,9 @@
-import { useCallback, useMemo, useState } from 'react'
-import { Search } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Search, ShieldCheck } from 'lucide-react'
 import { ADMIN_STUDENT_OPS_DATA } from '../../data/adminStudentOps'
 import { useBillingSettingsForAdmin } from '../../context/SubscriptionContext'
+import { adminGetDemoOverrides, adminSetDemoOverride } from '../../services/lmsApi'
+import type { DemoOverride } from '../../types/lms'
 import '../../styles/admin-student-ops.css'
 
 export default function AdminStudentsPage() {
@@ -71,6 +73,49 @@ export default function AdminStudentsPage() {
     () => studentsWithTier.find(student => student.rowKey === activeStudentRowKey) ?? null,
     [studentsWithTier, activeStudentRowKey],
   )
+
+  // Demo override state
+  const [overrides, setOverrides] = useState<DemoOverride[]>([])
+  const [overrideModal, setOverrideModal] = useState<{ studentId: string; studentName: string; studentEmail: string } | null>(null)
+  const [overrideType, setOverrideType] = useState<'extend' | 'full_access' | 'reset'>('extend')
+  const [extendDays, setExtendDays] = useState(7)
+  const [overrideSubmitting, setOverrideSubmitting] = useState(false)
+  const [toast, setToast] = useState<string | null>(null)
+
+  useEffect(() => {
+    adminGetDemoOverrides().then(setOverrides)
+  }, [])
+
+  function getOverrideStatus(studentId: string): string {
+    const o = overrides.find(x => x.studentId === studentId)
+    if (!o) return '—'
+    if (!o.demoExpiresAt) return 'Full Access'
+    const exp = new Date(o.demoExpiresAt)
+    if (exp <= new Date()) return 'Expired'
+    return `Until ${exp.toLocaleDateString([], { month: 'short', day: 'numeric' })}`
+  }
+
+  function showToast(msg: string) {
+    setToast(msg)
+    setTimeout(() => setToast(null), 3000)
+  }
+
+  async function handleOverrideSubmit() {
+    if (!overrideModal) return
+    setOverrideSubmitting(true)
+    const action =
+      overrideType === 'extend'
+        ? { type: 'extend' as const, days: extendDays }
+        : overrideType === 'full_access'
+        ? { type: 'full_access' as const }
+        : { type: 'reset' as const }
+    await adminSetDemoOverride(overrideModal.studentId, overrideModal.studentName, overrideModal.studentEmail, action)
+    const updated = await adminGetDemoOverrides()
+    setOverrides(updated)
+    setOverrideSubmitting(false)
+    setOverrideModal(null)
+    showToast('Demo access updated ✓')
+  }
 
   const kpis = useMemo(() => {
     const tierCounts = tierIds.reduce<Record<string, number>>((accumulator, tierId) => {
@@ -149,6 +194,8 @@ export default function AdminStudentsPage() {
                   <th>Tier</th>
                   <th>Avg Score</th>
                   <th>Last Active</th>
+                  <th>Demo Access</th>
+                  <th></th>
                 </tr>
               </thead>
               <tbody>
@@ -166,6 +213,21 @@ export default function AdminStudentsPage() {
                     <td>{student.resolvedTier}</td>
                     <td>{student.avgScore}%</td>
                     <td>{student.lastActive}</td>
+                    <td style={{ fontSize: '0.8rem', color: '#55789c' }}>{getOverrideStatus(student.id)}</td>
+                    <td>
+                      <button
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 10px', fontSize: '0.78rem', fontWeight: 600, background: '#f0f7ff', color: '#1a6fad', border: '1px solid #cde0f5', borderRadius: 6, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                        onClick={e => {
+                          e.stopPropagation()
+                          setOverrideType('extend')
+                          setExtendDays(7)
+                          setOverrideModal({ studentId: student.id, studentName: student.name, studentEmail: student.email })
+                        }}
+                      >
+                        <ShieldCheck size={12} />
+                        Override Demo
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -212,6 +274,68 @@ export default function AdminStudentsPage() {
           )}
         </article>
       </section>
+      {/* Demo Override Modal */}
+      {overrideModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div style={{ background: '#fff', borderRadius: 14, padding: '28px 28px 24px', width: '100%', maxWidth: 420, boxShadow: '0 8px 32px rgba(0,0,0,0.18)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+              <ShieldCheck size={18} style={{ color: '#1a6fad' }} />
+              <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 800, color: '#0d2d5e' }}>Override Demo Access</h3>
+            </div>
+            <p style={{ margin: '0 0 18px', fontSize: '0.83rem', color: '#55789c' }}>
+              {overrideModal.studentName} &mdash; {overrideModal.studentEmail}
+            </p>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 20 }}>
+              {(['extend', 'full_access', 'reset'] as const).map(opt => (
+                <label key={opt} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', border: `1px solid ${overrideType === opt ? '#1a6fad' : '#d8e9f8'}`, borderRadius: 8, cursor: 'pointer', background: overrideType === opt ? '#f0f7ff' : '#fff' }}>
+                  <input type="radio" name="overrideType" checked={overrideType === opt} onChange={() => setOverrideType(opt)} style={{ accentColor: '#1a6fad' }} />
+                  <span style={{ fontSize: '0.87rem', fontWeight: 600, color: '#0d2d5e' }}>
+                    {opt === 'extend' ? 'Extend by days' : opt === 'full_access' ? 'Grant Full Access' : 'Reset to Expired'}
+                  </span>
+                </label>
+              ))}
+            </div>
+
+            {overrideType === 'extend' && (
+              <div style={{ marginBottom: 20 }}>
+                <label style={{ fontSize: '0.82rem', fontWeight: 600, color: '#355a7f', display: 'block', marginBottom: 6 }}>Number of days (1–30)</label>
+                <input
+                  type="number"
+                  min={1}
+                  max={30}
+                  value={extendDays}
+                  onChange={e => setExtendDays(Math.min(30, Math.max(1, Number(e.target.value))))}
+                  style={{ padding: '8px 12px', border: '1px solid #cde0f5', borderRadius: 8, fontSize: '0.9rem', width: 100 }}
+                />
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => setOverrideModal(null)}
+                style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid #d8e9f8', background: '#fff', color: '#55789c', fontWeight: 600, fontSize: '0.85rem', cursor: 'pointer' }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleOverrideSubmit}
+                disabled={overrideSubmitting}
+                style={{ padding: '8px 16px', borderRadius: 8, border: 'none', background: '#1a6fad', color: '#fff', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer', opacity: overrideSubmitting ? 0.6 : 1 }}
+              >
+                {overrideSubmitting ? 'Saving…' : 'Apply'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Toast */}
+      {toast && (
+        <div style={{ position: 'fixed', bottom: 24, right: 24, background: '#0d2d5e', color: '#fff', padding: '10px 18px', borderRadius: 10, fontSize: '0.87rem', fontWeight: 600, zIndex: 2000, boxShadow: '0 4px 16px rgba(0,0,0,0.2)' }}>
+          {toast}
+        </div>
+      )}
     </div>
   )
 }

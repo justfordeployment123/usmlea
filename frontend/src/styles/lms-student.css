@@ -1,0 +1,380 @@
+/* ─── Student LMS Page Styles ────────────────────────────────────────────── */
+
+.lms-classes-page {
+  display: grid;
+  gap: 16px;
+}
+
+/* Live Banner */
+@keyframes lms-student-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.7; transform: scale(1.1); }
+}
+
+.lms-live-banner {
+  background: linear-gradient(135deg, #16a34a, #15803d);
+  color: #fff;
+  border-radius: 12px;
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+
+.lms-live-banner__pulse {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #fff;
+  animation: lms-student-pulse 1.5s infinite;
+  flex-shrink: 0;
+}
+
+.lms-live-banner__text {
+  font-weight: 700;
+  font-size: 0.9rem;
+  flex: 1;
+}
+
+/* Classes Grid */
+.lms-classes-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 14px;
+}
+
+/* Class Card */
+.lms-class-card {
+  background: #fff;
+  border: 1px solid #d8e9f8;
+  border-radius: 16px;
+  padding: 16px;
+  display: grid;
+  gap: 12px;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.lms-class-card:hover {
+  border-color: #8ec4e8;
+  box-shadow: 0 2px 12px rgba(26, 111, 173, 0.08);
+}
+
+.lms-class-card--live {
+  border-color: #86efac;
+  box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.1);
+}
+
+.lms-class-card__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.lms-class-card__name {
+  font-size: 1rem;
+  font-weight: 800;
+  color: #0d2d5e;
+  margin: 0;
+  line-height: 1.3;
+}
+
+.lms-class-card__product-badge {
+  font-size: 0.72rem;
+  font-weight: 700;
+  background: #e8f3ff;
+  color: #1a6fad;
+  padding: 3px 8px;
+  border-radius: 999px;
+  display: inline-block;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.lms-class-card__teacher {
+  font-size: 0.83rem;
+  color: #55789c;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Countdown Chips */
+.lms-countdown-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.lms-countdown-chip--live {
+  background: #dcfce7;
+  color: #15803d;
+  border: 1px solid #bbf7d0;
+}
+
+.lms-countdown-chip--today {
+  background: #dbeafe;
+  color: #1d4ed8;
+  border: 1px solid #bfdbfe;
+}
+
+.lms-countdown-chip--upcoming {
+  background: #f3f4f6;
+  color: #374151;
+  border: 1px solid #e5e7eb;
+}
+
+.lms-countdown-chip--none {
+  background: #f9fafb;
+  color: #9ca3af;
+  border: 1px solid #f3f4f6;
+}
+
+/* Attendance chip */
+.lms-class-card__attendance {
+  font-size: 0.78rem;
+  color: #6a86a7;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Card Actions */
+.lms-class-card__actions {
+  display: flex;
+  gap: 8px;
+}
+
+/* Buttons */
+.lms-join-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  background: #16a34a;
+  color: #fff;
+  border-radius: 8px;
+  font-weight: 700;
+  font-size: 0.83rem;
+  text-decoration: none;
+  border: none;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.lms-join-btn:hover {
+  background: #15803d;
+}
+
+.lms-view-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  background: #f0f7ff;
+  color: #1a6fad;
+  border: 1px solid #cde0f5;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 0.83rem;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.lms-view-btn:hover {
+  background: #e0f0ff;
+}
+
+/* ─── Live Session Page ───────────────────────────────────────────────────── */
+
+.lms-session-page {
+  display: grid;
+  gap: 16px;
+}
+
+.lms-session-header {
+  background: #fff;
+  border: 1px solid #d8e9f8;
+  border-radius: 14px;
+  padding: 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.lms-session-layout {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  gap: 16px;
+  align-items: start;
+}
+
+/* Zoom Frame Placeholder */
+.lms-zoom-frame {
+  background: #0d1117;
+  border-radius: 16px;
+  aspect-ratio: 16 / 9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 1rem;
+  color: #fff;
+  position: relative;
+  overflow: hidden;
+}
+
+.lms-zoom-frame::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at center, rgba(26, 111, 173, 0.15) 0%, transparent 70%);
+}
+
+.lms-zoom-frame__label {
+  font-size: 0.78rem;
+  color: rgba(255, 255, 255, 0.5);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  position: relative;
+}
+
+.lms-zoom-frame__title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  text-align: center;
+  padding: 0 2rem;
+  position: relative;
+}
+
+.lms-zoom-frame__subtitle {
+  font-size: 0.83rem;
+  color: rgba(255, 255, 255, 0.6);
+  position: relative;
+}
+
+/* Countdown Large */
+.lms-countdown-large {
+  text-align: center;
+  padding: 3rem 2rem;
+  background: #fff;
+  border: 1px solid #d8e9f8;
+  border-radius: 16px;
+}
+
+.lms-countdown-large__time {
+  font-size: clamp(2rem, 6vw, 3.5rem);
+  font-weight: 900;
+  color: #0d2d5e;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.lms-countdown-large__label {
+  font-size: 0.83rem;
+  color: #6a86a7;
+  margin-top: 0.5rem;
+}
+
+.lms-countdown-large__date {
+  font-size: 0.87rem;
+  color: #355a7f;
+  font-weight: 600;
+  margin-top: 0.75rem;
+}
+
+/* Sidebar */
+.lms-sidebar {
+  background: #fff;
+  border: 1px solid #d8e9f8;
+  border-radius: 14px;
+  padding: 14px;
+  display: grid;
+  gap: 12px;
+}
+
+.lms-sidebar__title {
+  font-size: 0.87rem;
+  font-weight: 700;
+  color: #0d2d5e;
+  margin: 0;
+}
+
+/* Notice Item in sidebar */
+.lms-notice-item {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  padding: 8px;
+  border-radius: 8px;
+  background: #fafcff;
+  border: 1px solid #eef4fc;
+}
+
+.lms-notice-item__icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.lms-notice-item__icon--announcement {
+  background: #e8f3ff;
+  color: #1a6fad;
+}
+
+.lms-notice-item__icon--pdf {
+  background: #fef2f2;
+  color: #dc2626;
+}
+
+.lms-notice-item__title {
+  font-size: 0.83rem;
+  font-weight: 600;
+  color: #0d2d5e;
+  line-height: 1.3;
+}
+
+.lms-notice-item__date {
+  font-size: 0.72rem;
+  color: #6a86a7;
+  margin-top: 2px;
+}
+
+.lms-notice-item__filename {
+  font-size: 0.72rem;
+  color: #1a6fad;
+  margin-top: 2px;
+}
+
+/* Empty state */
+.lms-empty-state {
+  text-align: center;
+  padding: 2rem;
+  color: #6a86a7;
+}
+
+/* Responsive */
+@media (max-width: 900px) {
+  .lms-session-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 600px) {
+  .lms-classes-grid {
+    grid-template-columns: 1fr;
+  }
+}
