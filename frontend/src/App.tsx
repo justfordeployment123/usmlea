@@ -1,12 +1,15 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { StudentAuthProvider } from './context/StudentAuthContext'
 import { AdminAuthProvider } from './context/AdminAuthContext'
+import { AffiliateAuthProvider } from './context/AffiliateAuthContext'
 import { AnnouncementProvider } from './context/AnnouncementContext'
 import { SubscriptionProvider } from './context/SubscriptionContext'
 import StudentLayout from './layouts/StudentLayout'
 import AdminLayout from './layouts/AdminLayout'
+import AffiliateLayout from './layouts/AffiliateLayout'
 import StudentProtectedRoute from './components/routing/StudentProtectedRoute'
 import AdminProtectedRoute from './components/routing/AdminProtectedRoute'
+import AffiliateProtectedRoute from './components/routing/AffiliateProtectedRoute'
 import LandingPage from './pages/LandingPage'
 
 import StudentLoginPage    from './pages/student/auth/StudentLoginPage'
@@ -37,6 +40,11 @@ import AdminFinancialsPage from './pages/admin/AdminFinancialsPage'
 import AdminCommentsPage   from './pages/admin/AdminCommentsPage'
 import AdminAnnouncementsPage from './pages/admin/AdminAnnouncementsPage'
 import AdminBillingSettingsPage from './pages/admin/AdminBillingSettingsPage'
+import AdminAffiliatesPage from './pages/admin/AdminAffiliatesPage'
+import AffiliateLoginPage from './pages/affiliate/auth/AffiliateLoginPage'
+import AffiliateDashboardPage from './pages/affiliate/AffiliateDashboardPage'
+import AffiliateReferralsPage from './pages/affiliate/AffiliateReferralsPage'
+import AffiliateEarningsPage from './pages/affiliate/AffiliateEarningsPage'
 import FeatureGate from './components/billing/FeatureGate'
 
 export default function App() {
@@ -45,6 +53,7 @@ export default function App() {
       <StudentAuthProvider>
         <SubscriptionProvider>
           <AdminAuthProvider>
+            <AffiliateAuthProvider>
             <AnnouncementProvider>
               <Routes>
               {/* Public landing page */}
@@ -95,6 +104,20 @@ export default function App() {
                   <Route path="/admin/comments" element={<AdminCommentsPage />} />
                   <Route path="/admin/announcements" element={<AdminAnnouncementsPage />} />
                   <Route path="/admin/billing" element={<AdminBillingSettingsPage />} />
+                  <Route path="/admin/affiliates" element={<AdminAffiliatesPage />} />
+                </Route>
+              </Route>
+
+              {/* Affiliate Auth */}
+              <Route path="/affiliate/login" element={<AffiliateLoginPage />} />
+
+              {/* Affiliate Portal */}
+              <Route element={<AffiliateProtectedRoute />}>
+                <Route element={<AffiliateLayout />}>
+                  <Route path="/affiliate" element={<Navigate to="/affiliate/dashboard" replace />} />
+                  <Route path="/affiliate/dashboard" element={<AffiliateDashboardPage />} />
+                  <Route path="/affiliate/referrals" element={<AffiliateReferralsPage />} />
+                  <Route path="/affiliate/earnings" element={<AffiliateEarningsPage />} />
                 </Route>
               </Route>
 
@@ -102,6 +125,7 @@ export default function App() {
               <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>
             </AnnouncementProvider>
+            </AffiliateAuthProvider>
           </AdminAuthProvider>
         </SubscriptionProvider>
       </StudentAuthProvider>

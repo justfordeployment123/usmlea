@@ -12,6 +12,7 @@ import {
   Menu,
   X,
   Shield,
+  Link2,
 } from 'lucide-react'
 import { useAdminAuth } from '../context/AdminAuthContext'
 import './AdminLayout.css'
@@ -24,6 +25,7 @@ const ADMIN_NAV_ITEMS = [
   { to: '/admin/comments', label: 'Comment Moderation', icon: MessageSquareWarning },
   { to: '/admin/announcements', label: 'Announcements', icon: Megaphone },
   { to: '/admin/billing', label: 'Billing & Trial', icon: Settings },
+  { to: '/admin/affiliates', label: 'Affiliates', icon: Link2 },
 ]
 
 export default function AdminLayout() {

@@ -3,6 +3,94 @@
   gap: 16px;
 }
 
+/* Referral code section */
+.billing-referral-section {
+  background: #fff;
+  border: 1px solid #d8e9f8;
+  border-radius: 12px;
+  padding: 1rem 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.billing-referral-header {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #1e3a5a;
+}
+
+.billing-referral-input-row {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.billing-referral-input {
+  flex: 1;
+  padding: 0.55rem 0.85rem;
+  border: 1px solid #d8e9f8;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  color: #1e3a5a;
+  background: #f8fbff;
+  outline: none;
+  letter-spacing: 0.04em;
+  font-weight: 600;
+  transition: border-color 0.15s;
+}
+
+.billing-referral-input:focus {
+  border-color: #5ba4cf;
+  background: #fff;
+}
+
+.billing-referral-input--valid { border-color: #16a34a; background: #f0fdf4; }
+.billing-referral-input--invalid { border-color: #dc2626; background: #fef2f2; }
+
+.billing-referral-apply-btn {
+  padding: 0.55rem 1.1rem;
+  background: #1a6fad;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 0.875rem;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s;
+}
+
+.billing-referral-apply-btn:hover { background: #155d96; }
+.billing-referral-apply-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.billing-referral-feedback {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.82rem;
+  margin: 0;
+}
+
+.billing-referral-feedback--valid { color: #16a34a; }
+.billing-referral-feedback--invalid { color: #dc2626; }
+
+.billing-referral-locked-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  background: #fef9e7;
+  color: #b45309;
+  border: 1px solid #fde68a;
+  padding: 0.18rem 0.5rem;
+  border-radius: 999px;
+  margin-left: 0.4rem;
+}
+
 .billing-upgrade-header h1 {
   margin: 0;
   display: flex;
