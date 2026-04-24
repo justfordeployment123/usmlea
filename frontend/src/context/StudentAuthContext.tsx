@@ -2,7 +2,7 @@
 import React, { createContext, useContext, useState } from 'react'
 import { safeParseJson } from '../services/errorUtils'
 import { captureException, logWarn } from '../services/observability'
-import { loginStudent, registerStudent } from '../services/authApi'
+import { completeStudentOnboarding, loginStudent, registerStudent } from '../services/authApi'
 import type { PlanId } from '../types/subscription'
 
 interface StudentUser {
@@ -29,7 +29,7 @@ interface StudentAuthContextType {
   login: (email: string, password: string) => Promise<StudentUser>
   register: (name: string, email: string, password: string, medicalSchool?: string) => Promise<StudentUser>
   logout: () => void
-  completeOnboarding: () => void
+  completeOnboarding: () => Promise<void>
 }
 
 const StudentAuthContext = createContext<StudentAuthContextType | null>(null)
@@ -171,7 +171,7 @@ export const StudentAuthProvider: React.FC<{ children: React.ReactNode }> = ({ c
       name: previousUser?.name ?? getNameFromEmail(response.user.email),
       email: response.user.email,
       medicalSchool: previousUser?.medicalSchool,
-      onboarded: previousUser?.onboarded ?? persistedOnboarded,
+      onboarded: response.user.onboarded ?? previousUser?.onboarded ?? persistedOnboarded,
       tier: previousUser?.tier ?? 'demo',
     }
 
@@ -205,7 +205,7 @@ export const StudentAuthProvider: React.FC<{ children: React.ReactNode }> = ({ c
       name: name.trim(),
       email: response.user.email,
       medicalSchool: medicalSchool?.trim() ? medicalSchool.trim() : undefined,
-      onboarded: persistedOnboarded,
+      onboarded: response.user.onboarded ?? persistedOnboarded,
       tier: 'demo',
     }
 
@@ -225,13 +225,23 @@ export const StudentAuthProvider: React.FC<{ children: React.ReactNode }> = ({ c
     setUser(null)
   }
 
-  const completeOnboarding = () => {
+  const completeOnboarding = async () => {
     if (!user) return
+
+    const persisted = safeParseJson<unknown>(localStorage.getItem(STUDENT_AUTH_KEY))
+
+    try {
+      if (isPersistedStudentAuth(persisted)) {
+        await completeStudentOnboarding(persisted.session.accessToken)
+      }
+    } catch (error) {
+      captureException(error, { feature: 'student-auth', action: 'complete-onboarding-api' })
+    }
+
     try {
       const updated = { ...user, onboarded: true }
       setPersistedOnboarding(updated.email, true)
 
-      const persisted = safeParseJson<unknown>(localStorage.getItem(STUDENT_AUTH_KEY))
       if (isPersistedStudentAuth(persisted)) {
         persistStudentAuth({ ...persisted, user: updated })
       } else {
@@ -240,7 +250,7 @@ export const StudentAuthProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
       setUser(updated)
     } catch (error) {
-      captureException(error, { feature: 'student-auth', action: 'complete-onboarding' })
+      captureException(error, { feature: 'student-auth', action: 'complete-onboarding-local' })
     }
   }
 

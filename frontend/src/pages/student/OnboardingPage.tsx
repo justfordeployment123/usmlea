@@ -29,9 +29,9 @@ export default function OnboardingPage() {
     if (step > 1) setStep(step - 1)
   }
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     saveOnboardingData(formData)
-    completeOnboarding()
+    await completeOnboarding()
     navigate('/student/roadmap')
   }
 

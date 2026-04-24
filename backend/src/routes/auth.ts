@@ -103,6 +103,7 @@ authRouter.post('/auth/student/register', async (req: Request, res: Response, ne
         id: data.user.id,
         email: data.user.email,
         role: 'student',
+        onboarded: false,
       },
       session,
     })
@@ -126,7 +127,7 @@ authRouter.post('/auth/student/login', async (req: Request, res: Response, next:
 
     const { data: profile, error: profileError } = await supabaseServiceClient
       .from('profiles')
-      .select('role')
+      .select('role, onboarded')
       .eq('id', data.user.id)
       .single()
 
@@ -139,6 +140,7 @@ authRouter.post('/auth/student/login', async (req: Request, res: Response, next:
         id: data.user.id,
         email: data.user.email,
         role: 'student',
+        onboarded: profile.onboarded ?? false,
       },
       session: data.session,
     })

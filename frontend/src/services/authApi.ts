@@ -10,6 +10,7 @@ export interface AuthResponse {
     id: string
     email: string
     role: 'student' | 'admin'
+    onboarded?: boolean
   }
   session: AuthSession
 }
@@ -72,5 +73,12 @@ export function resetStudentPassword(payload: ResetPasswordPayload) {
   return apiRequest<MessageResponse>('/auth/student/reset-password', {
     method: 'POST',
     body: payload,
+  })
+}
+
+export function completeStudentOnboarding(accessToken: string) {
+  return apiRequest<MessageResponse>('/student/complete-onboarding', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${accessToken}` },
   })
 }
