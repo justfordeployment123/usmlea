@@ -34,7 +34,7 @@ export default function TeacherAnalyticsPage() {
   const filteredSessions: SessionAnalytics[] =
     selectedClassId === 'all'
       ? analytics.perSession
-      : analytics.perSession.filter(s => {
+      : analytics.perSession.filter(_s => {
           // match sessions that belong to the selected class
           return true
         })

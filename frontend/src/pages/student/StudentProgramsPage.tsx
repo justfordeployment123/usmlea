@@ -50,7 +50,7 @@ export default function StudentProgramsPage() {
       </header>
 
       <div className="programs-grid">
-        {programs.map(({ product, teacherName, classId, sessionCount, enrolledCount }) => {
+        {programs.map(({ product, teacherName, sessionCount, enrolledCount }) => {
           const isEnrolled = enrolledProductIds.has(product.id)
           const mode = pricingMode[product.id] ?? 'upfront'
 

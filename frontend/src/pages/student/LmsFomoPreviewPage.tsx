@@ -37,7 +37,7 @@ export default function LmsFomoPreviewPage() {
 
   useEffect(() => {
     if (!user?.id) return
-    studentGetEnrolledClasses(user.id).then(classes => {
+    studentGetEnrolledClasses(user.id).then(() => {
       // Check if any class has a demo expiry (mock — always show for demo)
       setDemoExpiry(new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString())
     })

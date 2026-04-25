@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useParams } from 'react-router-dom'
 import { Send, Shield } from 'lucide-react'
-import { getClassById, getAllChatThreads, sendChatMessage, getChatMessagesForClass } from '../../services/lmsApi'
+import { getClassById, getAllChatThreads, sendChatMessage } from '../../services/lmsApi'
 import { useTeacherAuth } from '../../context/TeacherAuthContext'
 import type { ChatMessage, LmsClass } from '../../types/lms'
 import '../../styles/chat.css'

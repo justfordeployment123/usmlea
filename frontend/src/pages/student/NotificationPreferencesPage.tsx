@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Bell, Mail, Smartphone, MessageCircle } from 'lucide-react'
+import { Mail, Smartphone, MessageCircle } from 'lucide-react'
 import { getStudentNotificationPrefs, updateStudentNotificationPrefs } from '../../services/lmsApi'
 import { useStudentAuth } from '../../context/StudentAuthContext'
 import type { NotificationPrefs } from '../../types/lms'

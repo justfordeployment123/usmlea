@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react'
 import { Video, Zap } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { studentGetEnrolledClasses } from '../../services/lmsApi'
-import type { ClassWithProduct } from '../../types/lms'
 
 interface AlertBanner {
   type: 'live' | 'starting'
