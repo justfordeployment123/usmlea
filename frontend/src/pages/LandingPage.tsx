@@ -15,7 +15,6 @@ import {
   ShieldCheck,
   Stethoscope,
   Target,
-  TrendingUp,
   Users,
 } from 'lucide-react'
 import { DEFAULT_DEMO_VIDEO_URL } from '../data/contentVault'
