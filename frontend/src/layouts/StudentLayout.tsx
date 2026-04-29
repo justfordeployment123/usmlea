@@ -16,7 +16,7 @@ const NAV_ITEMS = [
   { to: '/student/dashboard',  icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/student/roadmap',    icon: Map,             label: 'My Roadmap' },
   { to: '/student/qbank',      icon: BookOpen,        label: 'Create Test' },
-  { to: '/student/tutor',      icon: BookOpen,        label: 'AI Tutor' },
+  { to: '/student/tutor',      icon: BookOpen,        label: 'Tutor' },
   { to: '/student/content',    icon: Library,         label: 'Content Hub' },
   { to: '/student/flashcards', icon: Layers,          label: 'Flashcards' },
   { to: '/student/notes',      icon: FileText,        label: 'Notes' },
