@@ -1,54 +1,94 @@
-import { Link } from 'react-router-dom'
-import { ArrowRight, CheckCircle2, Circle, Loader2 } from 'lucide-react'
-import type { StudentDashboardData } from '../../../data/dashboard'
+import { useNavigate } from 'react-router-dom'
+import { ClipboardList, Video, FileText, ArrowRight, CalendarDays } from 'lucide-react'
+import { getTodayRoadmapSession } from '../../../data/roadmap'
+import { VIDEOS, PDFS } from '../../../data/contentVault'
 
-interface Props { data: StudentDashboardData }
+export default function TodaysPlan() {
+  const navigate = useNavigate()
+  const today = getTodayRoadmapSession()
 
-const statusIcon = (status: string) => {
-  if (status === 'completed')  return <CheckCircle2 size={16} color="#27AE60" />
-  if (status === 'in-progress') return <Loader2 size={16} color="#1A6FAD" className="spin-icon" />
-  return <Circle size={16} color="#b0c8dc" />
-}
+  if (!today) {
+    return (
+      <div className="dash-card todays-plan-card">
+        <div className="todays-plan-header">
+          <CalendarDays size={18} />
+          <h2>Today's Plan</h2>
+        </div>
+        <p className="todays-plan-empty">No roadmap session scheduled for today.</p>
+      </div>
+    )
+  }
 
-export default function TodaysPlan({ data }: Props) {
-  const total = data.todaySessions.length
-  const done  = data.todaySessionsCompleted
-  const pct   = Math.round((done / total) * 100)
+  const { session, weekNumber } = today
+  const videos = (session.videoIds ?? []).map(id => VIDEOS.find(v => v.id === id)).filter(Boolean) as typeof VIDEOS
+  const docs = (session.documentIds ?? []).map(id => PDFS.find(p => p.id === id)).filter(Boolean) as typeof PDFS
+  const hasAnyTask = (session.uWorldIds?.length ?? 0) > 0 || videos.length > 0 || docs.length > 0
 
   return (
-    <div className="dash-card todays-plan">
-      <div className="dash-card__header">
-        <div>
-          <h2 className="dash-card__title">Today's Study Plan</h2>
-          <p className="dash-card__subtitle">{done} of {total} sessions complete</p>
-        </div>
+    <div className="dash-card todays-plan-card">
+      <div className="todays-plan-header">
+        <CalendarDays size={18} />
+        <h2>Today's Plan</h2>
+        <span className="todays-plan-badge">Week {weekNumber} · {session.day}</span>
       </div>
 
-      {/* Progress bar */}
-      <div className="today-progress-wrap">
-        <div className="today-progress-bar">
-          <div className="today-progress-bar__fill" style={{ width: `${pct}%` }} />
-        </div>
-        <span className="today-progress-pct">{pct}%</span>
+      <div className="todays-plan-subject">
+        <span className="todays-plan-subject-label">{session.subject}</span>
+        <span className="todays-plan-topic">{session.topic}</span>
+        <span className="todays-plan-hours">{session.hours}h</span>
       </div>
 
-      {/* Session list */}
-      <div className="today-sessions">
-        {data.todaySessions.map(s => (
-          <div key={s.id} className={`today-session today-session--${s.status}`}>
-            {statusIcon(s.status)}
-            <div className="today-session__info">
-              <span className="today-session__subject">{s.subject}</span>
-              <span className="today-session__subtopic">{s.subtopic}</span>
+      {hasAnyTask ? (
+        <div className="todays-plan-tasks">
+          {(session.uWorldIds?.length ?? 0) > 0 && (
+            <div className="todays-plan-task-row">
+              <span className="todays-plan-task-icon"><ClipboardList size={13} /></span>
+              <div>
+                <span className="todays-plan-task-label">UWorld questions</span>
+                <span className="todays-plan-task-ids">{session.uWorldIds!.join(', ')}</span>
+              </div>
             </div>
-            <span className="today-session__hours">{s.estimatedHours}h</span>
-          </div>
-        ))}
-      </div>
+          )}
 
-      <Link to="/student/roadmap" className="dash-btn-primary">
-        Continue Studying <ArrowRight size={15} />
-      </Link>
+          {videos.length > 0 && (
+            <div className="todays-plan-task-row">
+              <span className="todays-plan-task-icon"><Video size={13} /></span>
+              <div>
+                <span className="todays-plan-task-label">Watch</span>
+                <div className="todays-plan-links">
+                  {videos.map(v => (
+                    <button key={v!.id} type="button" className="todays-plan-link" onClick={() => navigate('/student/content', { state: { openVideoId: v!.id } })}>
+                      {v!.title}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {docs.length > 0 && (
+            <div className="todays-plan-task-row">
+              <span className="todays-plan-task-icon"><FileText size={13} /></span>
+              <div>
+                <span className="todays-plan-task-label">Read</span>
+                <div className="todays-plan-links">
+                  {docs.map(d => (
+                    <button key={d!.id} type="button" className="todays-plan-link" onClick={() => navigate('/student/content', { state: { openPdfId: d!.id } })}>
+                      {d!.title}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      ) : (
+        <p className="todays-plan-empty">No specific tasks assigned for today.</p>
+      )}
+
+      <button type="button" className="todays-plan-cta" onClick={() => navigate('/student/roadmap')}>
+        View Full Roadmap <ArrowRight size={14} />
+      </button>
     </div>
   )
 }

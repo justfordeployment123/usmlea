@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom'
 import { ArrowRight, Video, ShoppingBag, Clock, AlertTriangle } from 'lucide-react'
 import WelcomeBar from '../../components/student/dashboard/WelcomeBar'
 import DonutRing from '../../components/student/dashboard/DonutRing'
+import TodaysPlan from '../../components/student/dashboard/TodaysPlan'
 import { studentDashboardData } from '../../data/dashboard'
 import { useSubscription } from '../../context/SubscriptionContext'
 import '../../components/student/dashboard/Dashboard.css'
@@ -55,8 +56,9 @@ export default function DashboardPage() {
         </Link>
       </div>
 
-      {/* Main Stats Card */}
-      <div className="stats-card">
+      <div className="dashboard-main-grid">
+        {/* Main Stats Card */}
+        <div className="stats-card">
         <div className="stats-header">
           <div>
             <h2 className="stats-title">Statistics</h2>
@@ -137,6 +139,11 @@ export default function DashboardPage() {
             </div>
           </div>
         </div>
+      </div>
+
+        <aside className="dashboard-side">
+          <TodaysPlan />
+        </aside>
       </div>
     </div>
   )

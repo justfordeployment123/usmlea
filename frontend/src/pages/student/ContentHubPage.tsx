@@ -1,4 +1,5 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import { FileText, PlayCircle, Search, BookOpen } from 'lucide-react'
 import {
   CATEGORIES,
@@ -13,7 +14,13 @@ import '../../styles/content-hub.css'
 
 type HubTab = 'videos' | 'pdfs'
 
+interface HubLocationState {
+  openVideoId?: string
+  openPdfId?: string
+}
+
 export default function ContentHubPage() {
+  const location = useLocation()
   const [activeTab, setActiveTab] = useState<HubTab>('videos')
   const [searchTerm, setSearchTerm] = useState('')
   const [activeCategory, setActiveCategory] = useState('All')
@@ -23,6 +30,18 @@ export default function ContentHubPage() {
   const [pdfProgressById, setPdfProgressById] = useState<Record<string, number>>(() =>
     Object.fromEntries(PDFS.map(pdf => [pdf.id, pdf.progress])),
   )
+
+  useEffect(() => {
+    const state = location.state as HubLocationState | null
+    if (state?.openVideoId) {
+      const video = VIDEOS.find(v => v.id === state.openVideoId)
+      if (video) { setActiveTab('videos'); setSelectedVideo(video) }
+    } else if (state?.openPdfId) {
+      const pdf = PDFS.find(p => p.id === state.openPdfId)
+      if (pdf) { setActiveTab('pdfs'); setSelectedPdf(pdf); pdfPreviewStartedAtRef.current = Date.now() }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const openVideoPreview = (video: VideoResource) => {
     setSelectedVideo(video)

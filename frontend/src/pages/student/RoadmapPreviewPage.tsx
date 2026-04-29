@@ -86,6 +86,9 @@ export default function RoadmapPreviewPage() {
                       .map(id => PDFS.find(p => p.id === id))
                       .filter(Boolean) as typeof PDFS
 
+                    const goToVideo = (id: string) => navigate('/student/content', { state: { openVideoId: id } })
+                    const goToDoc   = (id: string) => navigate('/student/content', { state: { openPdfId: id } })
+
                     return (
                       <div key={idx} className="session-row">
                         <div className="session-row-top">
@@ -119,7 +122,7 @@ export default function RoadmapPreviewPage() {
                                       key={v!.id}
                                       type="button"
                                       className="session-resource-link"
-                                      onClick={() => navigate('/student/content-hub')}
+                                      onClick={() => goToVideo(v!.id)}
                                     >
                                       {v!.title}
                                     </button>
@@ -138,7 +141,7 @@ export default function RoadmapPreviewPage() {
                                       key={d!.id}
                                       type="button"
                                       className="session-resource-link"
-                                      onClick={() => navigate('/student/content-hub')}
+                                      onClick={() => goToDoc(d!.id)}
                                     >
                                       {d!.title}
                                     </button>
