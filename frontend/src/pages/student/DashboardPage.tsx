@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import {
   ArrowRight, AlertTriangle, Clock, TrendingUp, TrendingDown,
-  BookOpen, ShoppingBag, ChevronRight, Calendar, Flame,
+  BookOpen, ShoppingBag, ChevronRight, Calendar,
 } from 'lucide-react'
 import WelcomeBar from '../../components/student/dashboard/WelcomeBar'
 import DonutRing from '../../components/student/dashboard/DonutRing'
@@ -26,7 +26,6 @@ export default function DashboardPage() {
   const daysLeft = snapshot?.remainingDays ?? 0
 
   const lastTest = data.recentTests[0]
-  const qbankPct = Math.round((data.questionsAnswered / data.totalQuestions) * 100)
 
   useEffect(() => {
     if (user?.id) {
@@ -196,7 +195,7 @@ export default function DashboardPage() {
               </div>
               <div className="db-upcoming">
                 <div className="db-upcoming__class-name">{nextSession.className}</div>
-                <div className="db-upcoming__topic">{nextSession.topic || 'Live Session'}</div>
+                <div className="db-upcoming__topic">Live Session</div>
                 <div className="db-upcoming__time">
                   <Calendar size={13} />
                   {new Date(nextSession.scheduledAt).toLocaleDateString('en-US', {
