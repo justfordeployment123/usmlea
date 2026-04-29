@@ -54,6 +54,7 @@ export async function registerTeacher(payload: RegisterTeacherPayload): Promise<
     email: payload.email.trim().toLowerCase(),
     phone: payload.phone.trim(),
     bio: payload.bio.trim(),
+    profilePicture: payload.profilePicture,
     status: 'pending',
     registeredAt: new Date().toISOString(),
     assignedClassIds: [],

@@ -13,6 +13,7 @@ export interface Teacher {
   email: string
   phone: string
   bio: string
+  profilePicture?: string     // base64 data URL — replaced by Storage URL post-backend
   status: TeacherStatus
   registeredAt: string        // ISO datetime
   assignedClassIds: string[]
@@ -97,6 +98,7 @@ export interface RegisterTeacherPayload {
   password: string
   phone: string
   bio: string
+  profilePicture?: string
 }
 
 export interface CreateEditorPayload {

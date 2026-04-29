@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { type ChangeEvent, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { GraduationCap, User, Mail, Lock, Phone, FileText, Eye, EyeOff } from 'lucide-react'
+import { Camera, GraduationCap, User, Mail, Lock, Phone, FileText, Eye, EyeOff } from 'lucide-react'
 import { useTeacherAuth } from '../../../context/TeacherAuthContext'
 import '../../student/auth/Auth.css'
 
@@ -9,11 +9,21 @@ export default function TeacherRegisterPage() {
   const navigate = useNavigate()
 
   const [form, setForm] = useState({ name: '', email: '', password: '', confirmPassword: '', phone: '', bio: '' })
+  const [profilePicture, setProfilePicture] = useState<string | undefined>(undefined)
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleProfilePicChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = () => setProfilePicture(reader.result as string)
+    reader.readAsDataURL(file)
+  }
+
+  const handleSubmit = async (e: { preventDefault(): void }) => {
     e.preventDefault()
     setError('')
     if (form.password !== form.confirmPassword) {
@@ -24,6 +34,10 @@ export default function TeacherRegisterPage() {
       setError('Password must be at least 8 characters.')
       return
     }
+    if (!profilePicture) {
+      setError('Please upload a profile picture.')
+      return
+    }
     setLoading(true)
     try {
       await register({
@@ -32,6 +46,7 @@ export default function TeacherRegisterPage() {
         password: form.password,
         phone: form.phone,
         bio: form.bio,
+        profilePicture,
       })
       navigate('/teacher/pending')
     } catch (err) {
@@ -76,6 +91,28 @@ export default function TeacherRegisterPage() {
           {error && <div className="auth-error">{error}</div>}
 
           <form className="auth-form" onSubmit={handleSubmit}>
+            {/* Profile Picture */}
+            <div className="auth-field" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem' }}>
+              <label className="auth-label" style={{ alignSelf: 'flex-start' }}>Your Photo *</label>
+              <div
+                style={{ width: 88, height: 88, borderRadius: '50%', border: '2px dashed var(--color-border)', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--color-primary-surface)', cursor: 'pointer', flexShrink: 0 }}
+                onClick={() => fileInputRef.current?.click()}
+              >
+                {profilePicture
+                  ? <img src={profilePicture} alt="Profile preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  : <Camera size={28} color="var(--color-primary)" />
+                }
+              </div>
+              <span style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)' }}>Upload a clear photo of yourself</span>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                style={{ display: 'none' }}
+                onChange={handleProfilePicChange}
+              />
+            </div>
+
             <div className="auth-field">
               <label className="auth-label">Full Name *</label>
               <div className="auth-input-wrap">

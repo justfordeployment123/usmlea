@@ -1,42 +1,33 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ChevronDown, ChevronUp, Calendar, Target, TrendingUp } from 'lucide-react'
-import { useStudentAuth } from '../../context/StudentAuthContext'
+import { ChevronDown, ChevronUp, Calendar, Target, TrendingUp, ClipboardList, Video, FileText } from 'lucide-react'
 import { getOnboardingData } from '../../data/onboarding'
 import { hardcodedRoadmap, getRoadmapSummary } from '../../data/roadmap'
 import { getDaysUntilExam } from '../../data/dashboard'
+import { VIDEOS, PDFS } from '../../data/contentVault'
 import TimelineAdjuster from '../../components/student/create-test/TimelineAdjuster'
 import './Roadmap.css'
 
 export default function RoadmapPreviewPage() {
   const navigate = useNavigate()
-  const { completeOnboarding } = useStudentAuth()
   const onboardingData = getOnboardingData()
   const summary = getRoadmapSummary()
-  
+
   const [expandedWeeks, setExpandedWeeks] = useState<number[]>([1, 2])
 
   const toggleWeek = (weekNum: number) => {
     setExpandedWeeks(prev =>
-      prev.includes(weekNum)
-        ? prev.filter(w => w !== weekNum)
-        : [...prev, weekNum]
+      prev.includes(weekNum) ? prev.filter(w => w !== weekNum) : [...prev, weekNum]
     )
   }
 
-  const handleGetStarted = () => {
-    completeOnboarding()
-    navigate('/student/dashboard')
-  }
+  const daysUntilExam = onboardingData?.examDate ? getDaysUntilExam(onboardingData.examDate) : 47
 
-  const daysUntilExam = onboardingData?.examDate
-    ? getDaysUntilExam(onboardingData.examDate)
-    : 47
-
-  const examName = onboardingData?.examType
-    .split('-')
-    .map(w => w.charAt(0).toUpperCase() + w.slice(1))
-    .join(' ') || 'USMLE Step 1'
+  const examName =
+    onboardingData?.examType
+      .split('-')
+      .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+      .join(' ') || 'USMLE Step 1'
 
   return (
     <div className="roadmap-preview-container">
@@ -60,24 +51,15 @@ export default function RoadmapPreviewPage() {
               <Calendar size={16} />
               {daysUntilExam} days remaining
             </div>
-            <div className="stat-chip">
-              {onboardingData?.hoursPerDay || 4} hours/day
-            </div>
+            <div className="stat-chip">{onboardingData?.hoursPerDay || 4} hours/day</div>
           </div>
-        </div>
-
-        <div className="roadmap-velocity-section">
-          <TimelineAdjuster />
         </div>
 
         {/* Timeline */}
         <div className="roadmap-timeline">
           {hardcodedRoadmap.map(week => (
             <div key={week.weekNumber} className="week-card">
-              <button
-                className="week-header"
-                onClick={() => toggleWeek(week.weekNumber)}
-              >
+              <button className="week-header" onClick={() => toggleWeek(week.weekNumber)}>
                 <div className="week-title">
                   <span className="week-number">Week {week.weekNumber}</span>
                   <span className="week-dates">{week.dateRange}</span>
@@ -91,16 +73,85 @@ export default function RoadmapPreviewPage() {
 
               {expandedWeeks.includes(week.weekNumber) && (
                 <div className="week-sessions">
-                  {week.sessions.map((session, idx) => (
-                    <div key={idx} className="session-row">
-                      <div className="session-day">{session.day}</div>
-                      <div className="session-content">
-                        <div className="session-subject">{session.subject}</div>
-                        <div className="session-topic">{session.topic}</div>
+                  {week.sessions.map((session, idx) => {
+                    const hasAnyTask =
+                      (session.uWorldIds?.length ?? 0) > 0 ||
+                      (session.videoIds?.length ?? 0) > 0 ||
+                      (session.documentIds?.length ?? 0) > 0
+
+                    const sessionVideos = (session.videoIds ?? [])
+                      .map(id => VIDEOS.find(v => v.id === id))
+                      .filter(Boolean) as typeof VIDEOS
+                    const sessionDocs = (session.documentIds ?? [])
+                      .map(id => PDFS.find(p => p.id === id))
+                      .filter(Boolean) as typeof PDFS
+
+                    return (
+                      <div key={idx} className="session-row">
+                        <div className="session-row-top">
+                          <div className="session-day">{session.day}</div>
+                          <div className="session-content">
+                            <div className="session-subject">{session.subject}</div>
+                            <div className="session-topic">{session.topic}</div>
+                          </div>
+                          <div className="session-hours">{session.hours}h</div>
+                        </div>
+
+                        {hasAnyTask && (
+                          <div className="session-tasks">
+                            {(session.uWorldIds?.length ?? 0) > 0 && (
+                              <div className="session-task-row">
+                                <span className="session-task-icon"><ClipboardList size={13} /></span>
+                                <span className="session-task-label">UWorld questions:</span>
+                                <span className="session-task-ids">
+                                  {session.uWorldIds!.join(', ')}
+                                </span>
+                              </div>
+                            )}
+
+                            {sessionVideos.length > 0 && (
+                              <div className="session-task-row">
+                                <span className="session-task-icon"><Video size={13} /></span>
+                                <span className="session-task-label">Watch:</span>
+                                <span className="session-task-links">
+                                  {sessionVideos.map(v => (
+                                    <button
+                                      key={v!.id}
+                                      type="button"
+                                      className="session-resource-link"
+                                      onClick={() => navigate('/student/content-hub')}
+                                    >
+                                      {v!.title}
+                                    </button>
+                                  ))}
+                                </span>
+                              </div>
+                            )}
+
+                            {sessionDocs.length > 0 && (
+                              <div className="session-task-row">
+                                <span className="session-task-icon"><FileText size={13} /></span>
+                                <span className="session-task-label">Read:</span>
+                                <span className="session-task-links">
+                                  {sessionDocs.map(d => (
+                                    <button
+                                      key={d!.id}
+                                      type="button"
+                                      className="session-resource-link"
+                                      onClick={() => navigate('/student/content-hub')}
+                                    >
+                                      {d!.title}
+                                    </button>
+                                  ))}
+                                </span>
+                              </div>
+                            )}
+
+                          </div>
+                        )}
                       </div>
-                      <div className="session-hours">{session.hours}h</div>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               )}
             </div>
@@ -118,6 +169,10 @@ export default function RoadmapPreviewPage() {
           </div>
         </div>
 
+        <div className="roadmap-velocity-section">
+          <TimelineAdjuster />
+        </div>
+
         {/* Insights */}
         <div className="roadmap-insights">
           <div className="insight-icon">
@@ -132,23 +187,9 @@ export default function RoadmapPreviewPage() {
                 </li>
               ))}
             </ul>
-            <div className="milestone-info">
-              <p><strong>Expected milestones:</strong></p>
-              <ul>
-                <li>Week 4: First mock exam</li>
-                <li>Week 8: Mid-point assessment</li>
-                <li>Week 12: Final comprehensive review</li>
-              </ul>
-            </div>
           </div>
         </div>
 
-        {/* CTA */}
-        <div className="roadmap-cta">
-          <button className="btn-get-started" onClick={handleGetStarted}>
-            Get Started →
-          </button>
-        </div>
       </div>
     </div>
   )

@@ -131,16 +131,19 @@
 }
 
 .session-row {
-  display: grid;
-  grid-template-columns: 100px 1fr 60px;
-  gap: var(--space-4);
   padding: var(--space-4);
   border-bottom: 1px solid var(--color-border-light);
-  align-items: center;
 }
 
 .session-row:last-child {
   border-bottom: none;
+}
+
+.session-row-top {
+  display: grid;
+  grid-template-columns: 100px 1fr 60px;
+  gap: var(--space-4);
+  align-items: center;
 }
 
 .session-day {
@@ -170,6 +173,93 @@
   color: var(--color-text-muted);
   font-size: var(--text-sm);
   font-weight: 500;
+}
+
+/* Task rows */
+.session-tasks {
+  margin-top: var(--space-3);
+  margin-left: 116px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.session-task-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  font-size: var(--text-xs);
+}
+
+.session-task-icon {
+  color: var(--color-primary);
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.session-task-label {
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+}
+
+.session-task-ids {
+  color: var(--color-text-muted);
+  font-family: monospace;
+  font-size: 0.72rem;
+  line-height: 1.5;
+}
+
+.session-task-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.session-resource-link {
+  background: none;
+  border: 1px solid var(--color-primary-lighter);
+  border-radius: var(--radius-sm);
+  color: var(--color-primary);
+  font-size: 0.72rem;
+  padding: 1px 8px;
+  cursor: pointer;
+  transition: background var(--transition-fast);
+  font-family: inherit;
+}
+
+.session-resource-link:hover {
+  background: var(--color-primary-surface);
+}
+
+.session-task-row--test {
+  margin-top: 4px;
+}
+
+.session-test-btn {
+  background: var(--gradient-primary);
+  color: white;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 3px 12px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: opacity var(--transition-fast);
+}
+
+.session-test-btn:hover {
+  opacity: 0.88;
+}
+
+.session-test-done {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #16a34a;
+  font-weight: 600;
+  font-size: 0.72rem;
 }
 
 .collapsed-indicator {
@@ -263,9 +353,13 @@
     font-size: var(--text-2xl);
   }
 
-  .session-row {
+  .session-row-top {
     grid-template-columns: 80px 1fr 50px;
     gap: var(--space-2);
+  }
+
+  .session-tasks {
+    margin-left: 96px;
   }
 
   .roadmap-insights {
@@ -291,13 +385,17 @@
     padding-right: var(--space-4);
   }
 
-  .session-row {
+  .session-row-top {
     grid-template-columns: 1fr;
     gap: 6px;
   }
 
   .session-hours {
     text-align: left;
+  }
+
+  .session-tasks {
+    margin-left: 0;
   }
 
   .btn-get-started {

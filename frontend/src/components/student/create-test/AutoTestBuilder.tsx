@@ -4,6 +4,7 @@ import { BookOpen, AlertCircle, Settings, PlayCircle } from 'lucide-react'
 import { EXAM_TAXONOMY } from '../../../data/examTaxonomy'
 import { mockRoadmapContext, type TestBlueprint } from '../../../data/createTest'
 import { useSubscription } from '../../../context/SubscriptionContext'
+import { getTodayRoadmapSession, ROADMAP_SUBJECT_TO_TAXONOMY_ID } from '../../../data/roadmap'
 
 export default function AutoTestBuilder() {
   const navigate = useNavigate()
@@ -14,9 +15,14 @@ export default function AutoTestBuilder() {
   const [subjectId, setSubjectId] = useState(mockRoadmapContext.subjectId)
   const [topicId, setTopicId] = useState(mockRoadmapContext.topicId)
 
+  const todayRoadmapSession = getTodayRoadmapSession()
+  const roadmapSubjectId = todayRoadmapSession
+    ? (ROADMAP_SUBJECT_TO_TAXONOMY_ID[todayRoadmapSession.session.subject] ?? mockRoadmapContext.subjectId)
+    : mockRoadmapContext.subjectId
+
   const examId = mockRoadmapContext.examId
   const effectiveQuestionCount = isCustom ? questionCount : mockRoadmapContext.questionCount
-  const effectiveSubjectId = isCustom ? subjectId : mockRoadmapContext.subjectId
+  const effectiveSubjectId = isCustom ? subjectId : roadmapSubjectId
   const effectiveTopicId = isCustom ? topicId : mockRoadmapContext.topicId
 
   const selectedExam = useMemo(
@@ -61,9 +67,7 @@ export default function AutoTestBuilder() {
 
     recordDemoMockUsage()
     navigate('/student/test-session', {
-      state: {
-        testBlueprint: selectedBlueprint,
-      },
+      state: { testBlueprint: selectedBlueprint },
     })
   }
 
@@ -88,11 +92,19 @@ export default function AutoTestBuilder() {
         <div className="roadmap-context-banner">
           <div className="banner-icon"><AlertCircle size={24} /></div>
           <div>
-            <h4>Auto-configured for Today's Plan</h4>
-            <p>
-              We&apos;ve mapped this session to target <strong>{selectedSubject.label}: {selectedTopic.label}</strong>
-              {' '}for <strong>{selectedExam.label}</strong> based on your Day {mockRoadmapContext.currentDay} roadmap constraints.
-            </p>
+            <h4>Auto-configured for Today's Roadmap</h4>
+            {todayRoadmapSession ? (
+              <p>
+                Week {todayRoadmapSession.weekNumber} · {todayRoadmapSession.session.day} —{' '}
+                <strong>{todayRoadmapSession.session.subject}: {todayRoadmapSession.session.topic}</strong>.
+                {' '}Test questions are scoped to this session's subject.
+              </p>
+            ) : (
+              <p>
+                No active roadmap session found for today. Questions will use default roadmap scope:{' '}
+                <strong>{selectedSubject.label}: {selectedTopic.label}</strong>.
+              </p>
+            )}
           </div>
         </div>
       ) : (
@@ -186,7 +198,11 @@ export default function AutoTestBuilder() {
         </div>
       ) : null}
 
-      <button className="btn btn-primary start-btn" onClick={handleStart} disabled={!canStartMockExam()}>
+      <button
+        className="btn btn-primary start-btn"
+        onClick={handleStart}
+        disabled={!canStartMockExam()}
+      >
         <PlayCircle size={20} />
         {canStartMockExam() ? `Start ${isCustom ? 'Custom' : 'Roadmap'} Test` : 'Demo mock limit reached'}
       </button>
