@@ -9,7 +9,7 @@ export default function TodaysPlan() {
 
   if (!today) {
     return (
-      <div className="dash-card todays-plan-card">
+      <div className="db-card todays-plan-card">
         <div className="todays-plan-header">
           <CalendarDays size={18} />
           <h2>Today's Plan</h2>
@@ -25,7 +25,7 @@ export default function TodaysPlan() {
   const hasAnyTask = (session.uWorldIds?.length ?? 0) > 0 || videos.length > 0 || docs.length > 0
 
   return (
-    <div className="dash-card todays-plan-card">
+    <div className="db-card todays-plan-card">
       <div className="todays-plan-header">
         <CalendarDays size={18} />
         <h2>Today's Plan</h2>

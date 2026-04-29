@@ -3,8 +3,8 @@ import { NavLink, useNavigate, Outlet, Link } from 'react-router-dom'
 import {
   LayoutDashboard, Map, BookOpen, Library,
   BarChart2, Sparkles, FileText, LogOut,
-  ChevronLeft, ChevronRight, Bell, Search, Menu, Layers, Clock3, Video,
-  UserCircle, CreditCard, MessageSquare, Trophy, Users, ShoppingBag,
+  ChevronLeft, ChevronRight, Menu, Layers, Clock3, Video,
+  UserCircle, CreditCard, Globe, Trophy, Users, ShoppingBag, Inbox,
 } from 'lucide-react'
 import { useStudentAuth } from '../context/StudentAuthContext'
 import { useAnnouncements } from '../context/AnnouncementContext'
@@ -110,6 +110,30 @@ export default function StudentLayout() {
             </div>
           )}
 
+          {/* Quick access — Comments, Inbox, Billing */}
+          <div className="sl-quick-access">
+            <Link to="/student/community" className="sl-quick-btn" title="Community">
+              <Globe size={15} className="sl-quick-btn__icon" />
+              {!collapsed && <span>Community</span>}
+            </Link>
+            <button
+              type="button"
+              className="sl-quick-btn"
+              title="Inbox"
+              onClick={() => navigate('/student/inbox')}
+            >
+              <Inbox size={15} className="sl-quick-btn__icon" />
+              {!collapsed && <span>Inbox</span>}
+              {announcementUnreadCount > 0 && (
+                <span className="sl-quick-badge">{announcementUnreadCount > 9 ? '9+' : announcementUnreadCount}</span>
+              )}
+            </button>
+            <Link to="/student/billing" className="sl-quick-btn" title="Billing">
+              <CreditCard size={15} className="sl-quick-btn__icon" />
+              {!collapsed && <span>Billing</span>}
+            </Link>
+          </div>
+
           <div className="sl-user">
             <div className="sl-user__avatar">{initials}</div>
             {!collapsed && (
@@ -143,27 +167,6 @@ export default function StudentLayout() {
           <div className="sl-topbar__left" />
 
           <div className="sl-topbar__right">
-            <button className="sl-topbar__icon-btn" title="Search">
-              <Search size={18} />
-            </button>
-            <Link to="/student/comments" className="sl-topbar__icon-btn" title="Comments">
-              <MessageSquare size={18} />
-            </Link>
-            <button
-              className="sl-topbar__icon-btn sl-topbar__bell"
-              title="Inbox"
-              onClick={() => navigate('/student/inbox')}
-            >
-              <Bell size={18} />
-              {announcementUnreadCount > 0 && (
-                <span className="sl-topbar__badge">
-                  {announcementUnreadCount > 9 ? '9+' : announcementUnreadCount}
-                </span>
-              )}
-            </button>
-            <Link to="/student/billing" className="sl-topbar__icon-btn" title="Billing">
-              <CreditCard size={18} />
-            </Link>
             <Link to="/student/profile" className="sl-topbar__avatar sl-topbar__avatar--link" title="Profile">
               <UserCircle size={20} />
             </Link>

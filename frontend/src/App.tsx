@@ -47,6 +47,7 @@ import LeaderboardPage     from './pages/student/LeaderboardPage'
 import StudyPartnersPage   from './pages/student/StudyPartnersPage'
 import NotesPage           from './pages/student/NotesPage'
 import CommentsPage        from './pages/student/CommentsPage'
+import CommunityPage       from './pages/student/CommunityPage'
 import InboxPage           from './pages/student/InboxPage'
 import FlashcardsPage      from './pages/student/FlashcardsPage'
 import UpgradePage         from './pages/student/UpgradePage'
@@ -71,6 +72,7 @@ import AdminStudentsPage   from './pages/admin/AdminStudentsPage'
 import AdminMetricsPage    from './pages/admin/AdminMetricsPage'
 import AdminFinancialsPage from './pages/admin/AdminFinancialsPage'
 import AdminCommentsPage   from './pages/admin/AdminCommentsPage'
+import AdminCommunityPage  from './pages/admin/AdminCommunityPage'
 import AdminAnnouncementsPage from './pages/admin/AdminAnnouncementsPage'
 import AdminBillingSettingsPage from './pages/admin/AdminBillingSettingsPage'
 import AdminAffiliatesPage from './pages/admin/AdminAffiliatesPage'
@@ -150,6 +152,7 @@ export default function App() {
                           <Route path="/student/tutor" element={<AiTutorPage />} />
                           <Route path="/student/content" element={<ContentHubPage />} />
                           <Route path="/student/comments" element={<CommentsPage />} />
+                          <Route path="/student/community" element={<CommunityPage />} />
                           <Route path="/student/inbox" element={<InboxPage />} />
                           <Route path="/student/flashcards" element={<FlashcardsPage />} />
                           <Route path="/student/analytics" element={<FeatureGate feature="analytics_basic"><AnalyticsPage /></FeatureGate>} />
@@ -188,6 +191,7 @@ export default function App() {
                           <Route path="/admin/metrics" element={<AdminMetricsPage />} />
                           <Route path="/admin/financials" element={<AdminFinancialsPage />} />
                           <Route path="/admin/comments" element={<AdminCommentsPage />} />
+                          <Route path="/admin/community" element={<AdminCommunityPage />} />
                           <Route path="/admin/announcements" element={<AdminAnnouncementsPage />} />
                           <Route path="/admin/billing" element={<AdminBillingSettingsPage />} />
                           <Route path="/admin/affiliates" element={<AdminAffiliatesPage />} />

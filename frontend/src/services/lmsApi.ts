@@ -478,7 +478,14 @@ export async function getAvailablePrograms(): Promise<ProgramListing[]> {
 
 export async function studentGetEnrolledClasses(studentId: string): Promise<ClassWithProduct[]> {
   // BACKEND SWAP: GET /api/v1/student/classes
-  const classes = getClasses().filter(c => c.enrolledStudentIds.includes(studentId))
+  // In the mock layer, real auth user IDs won't match mock student IDs (student-mock-XXX).
+  // Fall back to student-mock-001 so demo enrollments are visible to the logged-in user.
+  const DEMO_FALLBACK_ID = 'student-mock-001'
+  const allClasses = getClasses()
+  const directMatches = allClasses.filter(c => c.enrolledStudentIds.includes(studentId))
+  const classes = directMatches.length > 0
+    ? directMatches
+    : allClasses.filter(c => c.enrolledStudentIds.includes(DEMO_FALLBACK_ID))
   const products = getProducts()
   const sessions = getSessions()
   const teachers = getTeachers()

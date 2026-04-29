@@ -18,6 +18,11 @@ export interface TodaySession {
   status: 'completed' | 'in-progress' | 'upcoming'
 }
 
+export interface WeakSubject {
+  name: string
+  accuracyPct: number
+}
+
 export interface StudentDashboardData {
   name: string
   overallScore: number
@@ -52,6 +57,9 @@ export interface StudentDashboardData {
   todaySessionsCompleted: number
   // Recent tests
   recentTests: TestHistoryItem[]
+  // Weak areas
+  weakSubjects: WeakSubject[]
+  totalStudyHours: number
 }
 
 export const studentDashboardData: StudentDashboardData = {
@@ -93,6 +101,14 @@ export const studentDashboardData: StudentDashboardData = {
     { id: 't2', subject: 'Mixed', score: 65, mode: 'Timed', date: 'Apr 1', questionsCount: 80, durationMins: 110 },
     { id: 't3', subject: 'Pharmacology', score: 82, mode: 'Timed', date: 'Mar 30', questionsCount: 30, durationMins: 28 },
   ],
+  weakSubjects: [
+    { name: 'Renal Pathology', accuracyPct: 44 },
+    { name: 'Endocrinology', accuracyPct: 51 },
+    { name: 'Cardiology', accuracyPct: 58 },
+    { name: 'Microbiology', accuracyPct: 63 },
+    { name: 'Biochemistry', accuracyPct: 67 },
+  ],
+  totalStudyHours: 42,
 }
 
 export function getDaysUntilExam(examDate: string): number {

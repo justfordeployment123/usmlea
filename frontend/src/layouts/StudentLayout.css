@@ -270,6 +270,64 @@
   padding: 7px 10px;
 }
 
+/* Quick access strip (Comments, Inbox, Billing) */
+.sl-quick-access {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 4px 0;
+  border-top: 1px solid rgba(255,255,255,0.06);
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+
+.sl-quick-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  background: none;
+  border: none;
+  color: rgba(255,255,255,0.4);
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background var(--transition-fast), color var(--transition-fast);
+  white-space: nowrap;
+  position: relative;
+  font-family: inherit;
+  width: 100%;
+}
+
+.sl-quick-btn:hover {
+  background: rgba(255,255,255,0.07);
+  color: rgba(255,255,255,0.8);
+  text-decoration: none;
+}
+
+.sl-quick-btn__icon {
+  flex-shrink: 0;
+  width: 15px;
+}
+
+/* Collapsed: center icons */
+.sl-root--collapsed .sl-quick-btn {
+  justify-content: center;
+  padding: 6px 0;
+}
+
+.sl-quick-badge {
+  margin-left: auto;
+  background: #e74c3c;
+  color: #fff;
+  font-size: 9px;
+  font-weight: 700;
+  border-radius: 999px;
+  padding: 1px 5px;
+  line-height: 1.4;
+}
+
 .sl-logout {
   display: flex;
   align-items: center;
