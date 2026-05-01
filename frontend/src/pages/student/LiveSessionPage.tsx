@@ -237,6 +237,23 @@ export default function LiveSessionPage() {
         </Link>
       </div>
 
+      {/* Missed session notices */}
+      {sessions.filter(s => s.status === 'cancelled' && s.missedReason).map(s => (
+        <div key={s.id} style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 12, padding: '14px 18px', display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+          <div style={{ width: 34, height: 34, borderRadius: 9, background: '#fef3c7', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <Calendar size={15} color="#92400e" />
+          </div>
+          <div>
+            <div style={{ fontWeight: 700, fontSize: '0.85rem', color: '#92400e', marginBottom: 3 }}>
+              Session on {formatDate(s.scheduledAt)} was not conducted
+            </div>
+            <div style={{ fontSize: '0.82rem', color: '#78350f', lineHeight: 1.5 }}>
+              {s.missedReason}
+            </div>
+          </div>
+        </div>
+      ))}
+
       {/* Notices */}
       <div style={{ background: '#fff', border: '1px solid #E0E7FF', borderRadius: 14, padding: '18px 20px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 14 }}>

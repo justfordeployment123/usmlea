@@ -8,6 +8,7 @@ import {
   startSession,
   endSession,
   cancelSession,
+  markSessionMissed,
   createNotice,
   deleteNotice,
   updateSessionRecording,
@@ -93,8 +94,11 @@ export default function TeacherClassDetailPage() {
   const [noticeError, setNoticeError] = useState('')
   const [noticeSubmitting, setNoticeSubmitting] = useState(false)
 
-  // Cancel confirm
-  const [cancelConfirmId, setCancelConfirmId] = useState<string | null>(null)
+  // Reason modal — used for both cancellations and missed sessions
+  const [reasonModalId, setReasonModalId] = useState<string | null>(null)
+  const [reasonModalMode, setReasonModalMode] = useState<'cancel' | 'missed'>('missed')
+  const [missedReason, setMissedReason] = useState('')
+  const [missedSubmitting, setMissedSubmitting] = useState(false)
 
   // Recording management state
   const [recordingInputId, setRecordingInputId] = useState<string | null>(null)
@@ -135,11 +139,21 @@ export default function TeacherClassDetailPage() {
     showToast('Session ended ✓')
   }
 
-  async function handleCancel(sessionId: string) {
-    await cancelSession(sessionId)
-    setSessions(prev => prev.map(s => s.id === sessionId ? { ...s, status: 'cancelled' } : s))
-    setCancelConfirmId(null)
-    showToast('Session cancelled')
+  async function handleReasonSubmit() {
+    if (!reasonModalId || !missedReason.trim()) return
+    setMissedSubmitting(true)
+    if (reasonModalMode === 'cancel') {
+      await cancelSession(reasonModalId)
+      setSessions(prev => prev.map(s => s.id === reasonModalId ? { ...s, status: 'cancelled', missedReason: missedReason.trim() } : s))
+      showToast('Session cancelled — reason visible to students')
+    } else {
+      const updated = await markSessionMissed(reasonModalId, missedReason)
+      setSessions(prev => prev.map(s => s.id === updated.id ? updated : s))
+      showToast('Reason submitted — students and admin will be notified')
+    }
+    setReasonModalId(null)
+    setMissedReason('')
+    setMissedSubmitting(false)
   }
 
   async function handleDeleteNotice(noticeId: string) {
@@ -298,51 +312,43 @@ export default function TeacherClassDetailPage() {
                         </td>
                         <td>
                           <div style={{ display: 'flex', gap: 6 }}>
-                            {session.status === 'scheduled' && (
-                              <>
+                            {session.status === 'scheduled' && (() => {
+                              const isPast = new Date(session.scheduledAt) < new Date()
+                              return isPast ? (
                                 <button
-                                  className="teacher-btn teacher-btn--secondary"
+                                  className="teacher-btn teacher-btn--danger"
                                   style={{ padding: '5px 10px', fontSize: '0.78rem' }}
-                                  onClick={() => navigate(`/teacher/sessions/${session.id}/edit`)}
+                                  onClick={() => { setReasonModalId(session.id); setReasonModalMode('missed'); setMissedReason('') }}
                                 >
-                                  Edit
+                                  Session Not Taken — Add Reason
                                 </button>
-                                {cancelConfirmId === session.id ? (
-                                  <>
-                                    <button
-                                      className="teacher-btn teacher-btn--danger"
-                                      style={{ padding: '5px 10px', fontSize: '0.78rem' }}
-                                      onClick={() => handleCancel(session.id)}
-                                    >
-                                      Confirm Cancel
-                                    </button>
-                                    <button
-                                      className="teacher-btn teacher-btn--ghost"
-                                      style={{ padding: '5px 10px', fontSize: '0.78rem' }}
-                                      onClick={() => setCancelConfirmId(null)}
-                                    >
-                                      No
-                                    </button>
-                                  </>
-                                ) : (
+                              ) : (
+                                <>
+                                  <button
+                                    className="teacher-btn teacher-btn--secondary"
+                                    style={{ padding: '5px 10px', fontSize: '0.78rem' }}
+                                    onClick={() => navigate(`/teacher/sessions/${session.id}/edit`)}
+                                  >
+                                    Edit
+                                  </button>
                                   <button
                                     className="teacher-btn teacher-btn--ghost"
                                     style={{ padding: '5px 10px', fontSize: '0.78rem' }}
-                                    onClick={() => setCancelConfirmId(session.id)}
+                                    onClick={() => { setReasonModalId(session.id); setReasonModalMode('cancel'); setMissedReason('') }}
                                   >
                                     Cancel
                                   </button>
-                                )}
-                                <button
-                                  className="teacher-btn teacher-btn--primary"
-                                  style={{ padding: '5px 10px', fontSize: '0.78rem' }}
-                                  onClick={() => handleStart(session)}
-                                >
-                                  <Play size={11} />
-                                  Start
-                                </button>
-                              </>
-                            )}
+                                  <button
+                                    className="teacher-btn teacher-btn--primary"
+                                    style={{ padding: '5px 10px', fontSize: '0.78rem' }}
+                                    onClick={() => handleStart(session)}
+                                  >
+                                    <Play size={11} />
+                                    Start
+                                  </button>
+                                </>
+                              )
+                            })()}
                             {session.status === 'live' && (
                               <button
                                 className="teacher-btn teacher-btn--danger"
@@ -364,6 +370,21 @@ export default function TeacherClassDetailPage() {
                                 <Video size={11} />
                                 Recording
                               </a>
+                            )}
+                            {session.status === 'cancelled' && (
+                              session.missedReason ? (
+                                <span style={{ fontSize: '0.75rem', color: '#92400e', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 6, padding: '4px 8px' }}>
+                                  Reason: {session.missedReason}
+                                </span>
+                              ) : (
+                                <button
+                                  className="teacher-btn teacher-btn--ghost"
+                                  style={{ padding: '5px 10px', fontSize: '0.78rem', color: '#92400e', borderColor: '#fde68a' }}
+                                  onClick={() => { setReasonModalId(session.id); setReasonModalMode('missed'); setMissedReason('') }}
+                                >
+                                  Add Reason
+                                </button>
+                              )
                             )}
                           </div>
                         </td>
@@ -651,6 +672,40 @@ export default function TeacherClassDetailPage() {
                 disabled={noticeSubmitting}
               >
                 {noticeSubmitting ? 'Posting…' : 'Post Notice'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reason Modal — cancel or missed */}
+      {reasonModalId && (
+        <div className="teacher-modal-overlay">
+          <div className="teacher-modal" style={{ maxWidth: 460 }}>
+            <div className="teacher-modal__header">
+              <h2 className="teacher-modal__title">
+                {reasonModalMode === 'cancel' ? 'Cancel Session — Reason Required' : 'Session Not Taken — Reason Required'}
+              </h2>
+            </div>
+            <p style={{ fontSize: '0.83rem', color: '#6B7280', margin: '0 0 14px' }}>
+              A reason is <strong>required</strong>. It will be visible to all students in this class and to the admin.
+            </p>
+            <textarea
+              value={missedReason}
+              onChange={e => setMissedReason(e.target.value)}
+              placeholder={reasonModalMode === 'cancel'
+                ? 'e.g. This session is being cancelled due to a public holiday. A makeup session will be scheduled next week.'
+                : 'e.g. Due to a personal emergency, I was unable to conduct today\'s session. I will reschedule it shortly.'}
+              rows={4}
+              style={{ width: '100%', padding: '10px 12px', border: '1px solid #C7D2FE', borderRadius: 8, fontSize: '0.87rem', fontFamily: 'inherit', resize: 'vertical', boxSizing: 'border-box' }}
+            />
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 14 }}>
+              <button
+                className="teacher-btn teacher-btn--primary"
+                disabled={!missedReason.trim() || missedSubmitting}
+                onClick={handleReasonSubmit}
+              >
+                {missedSubmitting ? 'Submitting…' : 'Submit Reason'}
               </button>
             </div>
           </div>

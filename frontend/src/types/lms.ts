@@ -60,6 +60,7 @@ export interface LmsSession {
   attendanceCount?: number
   actualDurationMinutes?: number
   changeNote?: string         // required when editing after creation, logged for audit
+  missedReason?: string       // teacher-provided reason when session was not taken
   createdAt: string
 }
 

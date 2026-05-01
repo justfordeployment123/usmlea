@@ -90,23 +90,73 @@ export default function TeacherAnalyticsPage() {
           </div>
         ) : (
           <>
-            {/* CSS bar chart */}
-            <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, height: 120, marginBottom: 8 }}>
-              {filteredSessions.slice(0, 12).map(s => (
-                <div key={s.sessionId} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
-                  <div style={{ fontSize: '0.6rem', color: '#9ca3af' }}>{s.attendancePercent ?? 0}%</div>
-                  <div
-                    style={{
-                      width: '100%',
-                      background: (s.attendancePercent ?? 0) >= 80 ? '#3730A3' : (s.attendancePercent ?? 0) >= 60 ? '#d97706' : '#dc2626',
-                      borderRadius: '4px 4px 0 0',
-                      height: `${Math.max(4, ((s.attendancePercent ?? 0) / maxAttendance) * 90)}px`,
-                      transition: 'height 0.3s',
-                    }}
-                  />
-                  <div style={{ fontSize: '0.6rem', color: '#9ca3af', transform: 'rotate(-45deg)', transformOrigin: 'top left', whiteSpace: 'nowrap' }}>
-                    {formatDate(s.scheduledAt)}
-                  </div>
+            {/* Y-axis labels + chart */}
+            <div style={{ display: 'flex', gap: 12 }}>
+              {/* Y-axis */}
+              <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', alignItems: 'flex-end', paddingBottom: 36, height: 180 }}>
+                {[100, 75, 50, 25, 0].map(v => (
+                  <span key={v} style={{ fontSize: '0.7rem', fontWeight: 600, color: '#6B7280', lineHeight: 1 }}>{v}%</span>
+                ))}
+              </div>
+
+              {/* Bars + grid */}
+              <div style={{ flex: 1, position: 'relative' }}>
+                {/* Grid lines */}
+                <div style={{ position: 'absolute', inset: 0, bottom: 36, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', pointerEvents: 'none' }}>
+                  {[0, 1, 2, 3, 4].map(i => (
+                    <div key={i} style={{ borderTop: '1px dashed #E5E7EB', width: '100%' }} />
+                  ))}
+                </div>
+
+                {/* Bars */}
+                <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, height: 144, marginBottom: 0, position: 'relative' }}>
+                  {filteredSessions.slice(0, 12).map(s => {
+                    const pct = s.attendancePercent ?? 0
+                    const barColor = pct >= 80 ? '#4F46E5' : pct >= 60 ? '#d97706' : '#dc2626'
+                    return (
+                      <div key={s.sessionId} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+                        <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#374151' }}>{pct}%</span>
+                        <div
+                          title={`${formatDate(s.scheduledAt)} — ${pct}%`}
+                          style={{
+                            width: '100%',
+                            background: barColor,
+                            borderRadius: '5px 5px 0 0',
+                            height: `${Math.max(4, (pct / 100) * 100)}px`,
+                            transition: 'opacity 0.15s',
+                            cursor: 'default',
+                          }}
+                          onMouseEnter={e => (e.currentTarget.style.opacity = '0.75')}
+                          onMouseLeave={e => (e.currentTarget.style.opacity = '1')}
+                        />
+                      </div>
+                    )
+                  })}
+                </div>
+
+                {/* X-axis date labels */}
+                <div style={{ display: 'flex', gap: 6, marginTop: 6, height: 30 }}>
+                  {filteredSessions.slice(0, 12).map(s => (
+                    <div key={s.sessionId} style={{ flex: 1, textAlign: 'center' }}>
+                      <span style={{ fontSize: '0.68rem', fontWeight: 600, color: '#374151', whiteSpace: 'nowrap' }}>
+                        {formatDate(s.scheduledAt)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Legend */}
+            <div style={{ display: 'flex', gap: 16, marginTop: 10 }}>
+              {[
+                { label: '≥ 80% — Good', color: '#4F46E5' },
+                { label: '60–79% — Average', color: '#d97706' },
+                { label: '< 60% — Low', color: '#dc2626' },
+              ].map(l => (
+                <div key={l.label} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                  <div style={{ width: 10, height: 10, borderRadius: 3, background: l.color }} />
+                  <span style={{ fontSize: '0.72rem', color: '#6B7280', fontWeight: 500 }}>{l.label}</span>
                 </div>
               ))}
             </div>

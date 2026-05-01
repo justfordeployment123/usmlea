@@ -328,7 +328,7 @@ export default function AdminLmsSessionsPage() {
                   <th>Duration</th>
                   <th>Status</th>
                   <th>Attended</th>
-                  <th>Change Note</th>
+                  <th>Cancellation Reason</th>
                   <th>Actions</th>
                 </tr>
               </thead>
@@ -349,14 +349,13 @@ export default function AdminLmsSessionsPage() {
                     <td>
                       {session.status === 'completed' ? (session.attendanceCount ?? '—') : '—'}
                     </td>
-                    <td>
-                      {session.changeNote ? (
-                        <span
-                          title={session.changeNote}
-                          style={{ fontSize: '0.75rem', color: '#b45309', cursor: 'help', textDecoration: 'underline dotted' }}
-                        >
-                          View note
+                    <td style={{ maxWidth: 220 }}>
+                      {session.missedReason ? (
+                        <span style={{ display: 'block', fontSize: '0.75rem', color: '#92400e', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 6, padding: '4px 8px', lineHeight: 1.4 }}>
+                          {session.missedReason}
                         </span>
+                      ) : session.changeNote ? (
+                        <span style={{ fontSize: '0.75rem', color: '#6B7280' }}>{session.changeNote}</span>
                       ) : (
                         <span style={{ color: '#d1d5db', fontSize: '0.75rem' }}>—</span>
                       )}

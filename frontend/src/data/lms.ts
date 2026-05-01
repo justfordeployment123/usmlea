@@ -28,7 +28,7 @@ const KEYS = {
   editors: 'nextgen.lms.editors',
   products: 'nextgen.lms.products-v2',
   classes: 'nextgen.lms.classes-v2',
-  sessions: 'nextgen.lms.sessions-v2',
+  sessions: 'nextgen.lms.sessions-v3',
   notices: 'nextgen.lms.notices-v2',
   demoOverrides: 'nextgen.lms.demo-overrides',
   teacherPasswords: 'nextgen.lms.teacher-passwords',
@@ -166,6 +166,10 @@ function seedClasses(): LmsClass[] {
 function seedSessions(): LmsSession[] {
   const now = new Date()
 
+  const threeDaysAgo = new Date(now)
+  threeDaysAgo.setDate(threeDaysAgo.getDate() - 3)
+  threeDaysAgo.setHours(10, 0, 0, 0)
+
   const yesterday = new Date(now)
   yesterday.setDate(yesterday.getDate() - 1)
   yesterday.setHours(10, 0, 0, 0)
@@ -182,7 +186,23 @@ function seedSessions(): LmsSession[] {
   nextSaturday.setDate(nextSaturday.getDate() + daysUntilSat)
   nextSaturday.setHours(9, 0, 0, 0)
 
+  const twoDaysAgo = new Date(now)
+  twoDaysAgo.setDate(twoDaysAgo.getDate() - 2)
+  twoDaysAgo.setHours(9, 0, 0, 0)
+
   return [
+    // class-001: missed session (cancelled with reason)
+    {
+      id: 'session-000',
+      classId: 'class-001',
+      scheduledAt: threeDaysAgo.toISOString(),
+      durationMinutes: 90,
+      status: 'cancelled',
+      meetingLink: 'https://zoom.us/j/mock-session-000',
+      missedReason: 'I was unable to conduct this session due to a family emergency. I sincerely apologise for the inconvenience. A makeup session has been scheduled for next week.',
+      createdAt: threeDaysAgo.toISOString(),
+    },
+    // class-001: completed session
     {
       id: 'session-001',
       classId: 'class-001',
@@ -195,6 +215,7 @@ function seedSessions(): LmsSession[] {
       actualDurationMinutes: 87,
       createdAt: yesterday.toISOString(),
     },
+    // class-001: live right now
     {
       id: 'session-002',
       classId: 'class-001',
@@ -205,6 +226,7 @@ function seedSessions(): LmsSession[] {
       attendanceCount: 2,
       createdAt: liveStart.toISOString(),
     },
+    // class-001: scheduled tomorrow
     {
       id: 'session-003',
       classId: 'class-001',
@@ -214,6 +236,17 @@ function seedSessions(): LmsSession[] {
       meetingLink: 'https://zoom.us/j/mock-session-003',
       createdAt: new Date().toISOString(),
     },
+    // class-002: missed 2 days ago — no reason yet (teacher still needs to add)
+    {
+      id: 'session-005',
+      classId: 'class-002',
+      scheduledAt: twoDaysAgo.toISOString(),
+      durationMinutes: 120,
+      status: 'scheduled',
+      meetingLink: 'https://zoom.us/j/mock-session-005',
+      createdAt: twoDaysAgo.toISOString(),
+    },
+    // class-002: upcoming scheduled session
     {
       id: 'session-004',
       classId: 'class-002',

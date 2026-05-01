@@ -216,6 +216,18 @@ export async function cancelSession(id: string): Promise<void> {
   }
 }
 
+export async function markSessionMissed(id: string, reason: string): Promise<LmsSession> {
+  // BACKEND SWAP: PATCH /api/v1/teacher/sessions/:id/missed
+  const sessions = getSessions()
+  const idx = sessions.findIndex(s => s.id === id)
+  if (idx !== -1) {
+    sessions[idx] = { ...sessions[idx], status: 'cancelled', missedReason: reason.trim() }
+    saveSessions(sessions)
+    return sessions[idx]
+  }
+  throw new Error('Session not found')
+}
+
 // ─── Notice board ─────────────────────────────────────────────────────────────
 
 export async function getNoticesForClass(classId: string): Promise<Notice[]> {
