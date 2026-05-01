@@ -161,7 +161,7 @@ export default function LiveSessionPage() {
             /* LIVE STATE — embedded Zoom SDK */
             <EmbeddedZoomMeeting
               className={cls.name}
-              teacherName={cls.teacherName ?? 'Instructor'}
+              teacherName={'Instructor'}
               meetingNumber={liveSession.meetingLink}
             />
           ) : nextScheduled && countdown ? (

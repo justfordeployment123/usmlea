@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation } from 'react-router-dom'
-import { FileText, PlayCircle, Search, BookOpen, ListVideo, Play, Lock } from 'lucide-react'
+import { FileText, PlayCircle, Search, BookOpen, ListVideo, Play } from 'lucide-react'
 import {
   CATEGORIES,
   DEFAULT_DEMO_PDF_URL,
