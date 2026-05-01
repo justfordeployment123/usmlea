@@ -37,7 +37,7 @@ export default function DashboardPage() {
   // Next upcoming session across all enrolled classes
   const nextSession = enrolledClasses
     .filter(c => c.nextSession != null)
-    .map(c => ({ ...c.nextSession!, className: c.name }))
+    .map(c => ({ ...c.nextSession!, className: c.name, teacherName: c.teacherName, teacherPhoto: c.teacherPhoto }))
     .sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime())[0]
 
   return (
@@ -234,21 +234,32 @@ export default function DashboardPage() {
                 </Link>
               </div>
               <div className="db-upcoming">
-                <div className="db-upcoming__class-name">{nextSession.className}</div>
-                <div className="db-upcoming__topic">Live Session</div>
-                <div className="db-upcoming__time">
-                  <Calendar size={13} />
-                  {new Date(nextSession.scheduledAt).toLocaleDateString('en-US', {
-                    weekday: 'short', month: 'short', day: 'numeric',
-                  })}
-                  {' · '}
-                  {new Date(nextSession.scheduledAt).toLocaleTimeString('en-US', {
-                    hour: 'numeric', minute: '2-digit',
-                  })}
+                <div className="db-upcoming__teacher">
+                  {nextSession.teacherPhoto
+                    ? <img src={nextSession.teacherPhoto} alt={nextSession.teacherName} className="db-upcoming__teacher-avatar" />
+                    : <div className="db-upcoming__teacher-avatar db-upcoming__teacher-avatar--fallback">
+                        {nextSession.teacherName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+                      </div>
+                  }
+                  <span className="db-upcoming__teacher-name">{nextSession.teacherName}</span>
                 </div>
-                <Link to="/student/classes" className="db-upcoming__join">
-                  View in My Classes <ArrowRight size={14} />
-                </Link>
+                <div className="db-upcoming__details">
+                  <div className="db-upcoming__class-name">{nextSession.className}</div>
+                  <div className="db-upcoming__topic">Live Session</div>
+                  <div className="db-upcoming__time">
+                    <Calendar size={13} />
+                    {new Date(nextSession.scheduledAt).toLocaleDateString('en-US', {
+                      weekday: 'short', month: 'short', day: 'numeric',
+                    })}
+                    {' · '}
+                    {new Date(nextSession.scheduledAt).toLocaleTimeString('en-US', {
+                      hour: 'numeric', minute: '2-digit',
+                    })}
+                  </div>
+                  <Link to="/student/classes" className="db-upcoming__join">
+                    View in My Classes <ArrowRight size={14} />
+                  </Link>
+                </div>
               </div>
             </>
           ) : (

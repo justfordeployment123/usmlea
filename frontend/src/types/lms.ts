@@ -147,6 +147,7 @@ export interface SessionWithClass extends LmsSession {
 export interface ClassWithProduct extends LmsClass {
   productName: string
   teacherName: string
+  teacherPhoto?: string
   nextSession?: LmsSession
 }
 

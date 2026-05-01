@@ -82,6 +82,8 @@ import AdminLmsSessionsPage from './pages/admin/AdminLmsSessionsPage'
 import AdminClassesPage    from './pages/admin/AdminClassesPage'
 import AdminCouponsPage    from './pages/admin/AdminCouponsPage'
 import AdminChatSupervisionPage from './pages/admin/AdminChatSupervisionPage'
+import AdminPlaylistsPage  from './pages/admin/AdminPlaylistsPage'
+import AdminVideoLibraryPage from './pages/admin/AdminVideoLibraryPage'
 
 // Affiliate pages
 import AffiliateLoginPage from './pages/affiliate/auth/AffiliateLoginPage'
@@ -202,6 +204,8 @@ export default function App() {
                           <Route path="/admin/lms-sessions" element={<AdminLmsSessionsPage />} />
                           <Route path="/admin/classes" element={<AdminClassesPage />} />
                           <Route path="/admin/coupons" element={<AdminCouponsPage />} />
+                          <Route path="/admin/video-library" element={<AdminVideoLibraryPage />} />
+                          <Route path="/admin/playlists" element={<AdminPlaylistsPage />} />
                           <Route path="/admin/chat-supervision" element={<AdminChatSupervisionPage />} />
                         </Route>
                       </Route>

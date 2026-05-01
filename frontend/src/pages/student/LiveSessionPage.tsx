@@ -9,13 +9,13 @@ import type { LmsClass, LmsSession, Notice } from '../../types/lms'
 import '../../styles/lms-student.css'
 import {
   Video,
-  ExternalLink,
   Calendar,
   FileText,
   Megaphone,
   ChevronLeft,
   MessageCircle,
 } from 'lucide-react'
+import EmbeddedZoomMeeting from '../../components/lms/EmbeddedZoomMeeting'
 import AskQuestionModal from '../../components/lms/AskQuestionModal'
 import { useStudentAuth } from '../../context/StudentAuthContext'
 
@@ -158,42 +158,12 @@ export default function LiveSessionPage() {
         {/* Main content */}
         <div>
           {liveSession ? (
-            /* LIVE STATE */
-            <div className="lms-zoom-frame">
-              <span className="lms-zoom-frame__label">Live Session</span>
-              <Video size={48} style={{ opacity: 0.6 }} />
-              <span className="lms-zoom-frame__title">
-                {cls.name} — Live Session in Progress
-              </span>
-              <span className="lms-zoom-frame__subtitle">
-                Click below to join in Zoom
-              </span>
-              <a
-                href={liveSession.meetingLink}
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 8,
-                  padding: '10px 20px',
-                  background: '#16a34a',
-                  color: '#fff',
-                  borderRadius: 10,
-                  fontWeight: 700,
-                  fontSize: '0.95rem',
-                  textDecoration: 'none',
-                  position: 'relative',
-                  zIndex: 1,
-                }}
-              >
-                <ExternalLink size={16} />
-                Join via Zoom
-              </a>
-              <span style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)', position: 'relative' }}>
-                Click to open Zoom in a new window
-              </span>
-            </div>
+            /* LIVE STATE — embedded Zoom SDK */
+            <EmbeddedZoomMeeting
+              className={cls.name}
+              teacherName={cls.teacherName ?? 'Instructor'}
+              meetingNumber={liveSession.meetingLink}
+            />
           ) : nextScheduled && countdown ? (
             /* SCHEDULED STATE */
             <div className="lms-countdown-large">

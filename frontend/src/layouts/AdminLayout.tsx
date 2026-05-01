@@ -19,25 +19,49 @@ import {
   BookOpen,
   Tag,
   Eye,
+  ListVideo,
+  Library,
 } from 'lucide-react'
 import { useAdminAuth } from '../context/AdminAuthContext'
 import './AdminLayout.css'
 
-const ADMIN_NAV_ITEMS = [
-  { to: '/admin/dashboard', label: 'Overview', icon: LayoutDashboard },
-  { to: '/admin/students', label: 'Student Insights', icon: Users },
-  { to: '/admin/metrics', label: 'Global Metrics', icon: BarChart3 },
-  { to: '/admin/financials', label: 'Financials', icon: Wallet },
-  { to: '/admin/community', label: 'Community', icon: Globe },
-  { to: '/admin/announcements', label: 'Announcements', icon: Megaphone },
-  { to: '/admin/billing', label: 'Billing & Trial', icon: Settings },
-  { to: '/admin/affiliates', label: 'Affiliates', icon: Link2 },
-  { to: '/admin/teachers', label: 'Teachers', icon: UserCheck },
-  { to: '/admin/products', label: 'LMS Products', icon: Package },
-  { to: '/admin/lms-sessions', label: 'LMS Sessions', icon: Video },
-  { to: '/admin/classes', label: 'Classes', icon: BookOpen },
-  { to: '/admin/coupons', label: 'Coupons', icon: Tag },
-  { to: '/admin/chat-supervision', label: 'Chat Supervision', icon: Eye },
+const ADMIN_NAV_GROUPS = [
+  {
+    label: 'General',
+    items: [
+      { to: '/admin/dashboard',   label: 'Overview',         icon: LayoutDashboard },
+      { to: '/admin/students',    label: 'Student Insights', icon: Users },
+      { to: '/admin/metrics',     label: 'Global Metrics',   icon: BarChart3 },
+      { to: '/admin/financials',  label: 'Financials',       icon: Wallet },
+      { to: '/admin/affiliates',  label: 'Affiliates',       icon: Link2 },
+    ],
+  },
+  {
+    label: 'LMS',
+    items: [
+      { to: '/admin/teachers',    label: 'Teachers',     icon: UserCheck },
+      { to: '/admin/products',    label: 'Products',     icon: Package },
+      { to: '/admin/classes',     label: 'Classes',      icon: BookOpen },
+      { to: '/admin/lms-sessions',label: 'Sessions',     icon: Video },
+    ],
+  },
+  {
+    label: 'Content',
+    items: [
+      { to: '/admin/video-library', label: 'Video Library',  icon: Library },
+      { to: '/admin/playlists',     label: 'Paid Playlists', icon: ListVideo },
+      { to: '/admin/community',     label: 'Community',      icon: Globe },
+      { to: '/admin/announcements', label: 'Announcements',  icon: Megaphone },
+    ],
+  },
+  {
+    label: 'Settings',
+    items: [
+      { to: '/admin/billing',          label: 'Billing & Trial',   icon: Settings },
+      { to: '/admin/coupons',          label: 'Coupons',           icon: Tag },
+      { to: '/admin/chat-supervision', label: 'Chat Supervision',  icon: Eye },
+    ],
+  },
 ]
 
 export default function AdminLayout() {
@@ -69,22 +93,27 @@ export default function AdminLayout() {
         </div>
 
         <nav className="admin-sidebar__nav">
-          {ADMIN_NAV_ITEMS.map(item => {
-            const Icon = item.icon
-            return (
-              <NavLink
-                key={item.to}
-                to={item.to}
-                className={({ isActive }) =>
-                  `admin-sidebar__link ${isActive ? 'admin-sidebar__link--active' : ''}`
-                }
-                onClick={() => setMobileOpen(false)}
-              >
-                <Icon size={18} />
-                <span>{item.label}</span>
-              </NavLink>
-            )
-          })}
+          {ADMIN_NAV_GROUPS.map(group => (
+            <div key={group.label} className="admin-sidebar__group">
+              <span className="admin-sidebar__group-label">{group.label}</span>
+              {group.items.map(item => {
+                const Icon = item.icon
+                return (
+                  <NavLink
+                    key={item.to}
+                    to={item.to}
+                    className={({ isActive }) =>
+                      `admin-sidebar__link ${isActive ? 'admin-sidebar__link--active' : ''}`
+                    }
+                    onClick={() => setMobileOpen(false)}
+                  >
+                    <Icon size={16} />
+                    <span>{item.label}</span>
+                  </NavLink>
+                )
+              })}
+            </div>
+          ))}
         </nav>
 
         <div className="admin-sidebar__bottom">

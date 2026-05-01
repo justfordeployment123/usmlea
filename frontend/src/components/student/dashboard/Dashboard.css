@@ -424,7 +424,55 @@
 }
 
 /* ─── Upcoming class card ────────────────────────────── */
-.db-upcoming { display: flex; flex-direction: column; gap: 8px; }
+.db-upcoming {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  flex: 1;
+}
+
+/* Left: teacher avatar + info */
+.db-upcoming__teacher {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  text-align: center;
+}
+
+.db-upcoming__teacher-avatar {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 3px solid #E0E7FF;
+  flex-shrink: 0;
+}
+
+.db-upcoming__teacher-avatar--fallback {
+  background: linear-gradient(135deg, #3730A3, #4F46E5);
+  color: #fff;
+  font-size: 1.1rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.db-upcoming__teacher-name {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #6B7280;
+}
+
+/* Right: class details */
+.db-upcoming__details {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
 
 .db-upcoming__class-name {
   font-size: 15px;
@@ -447,7 +495,7 @@
 }
 
 .db-upcoming__join {
-  margin-top: 8px;
+  margin-top: 4px;
   display: inline-flex;
   align-items: center;
   gap: 6px;

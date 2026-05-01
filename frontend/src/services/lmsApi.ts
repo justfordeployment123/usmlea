@@ -501,6 +501,7 @@ export async function studentGetEnrolledClasses(studentId: string): Promise<Clas
       ...c,
       productName: product?.name ?? 'Unknown Product',
       teacherName: teacher?.name ?? 'Unknown Teacher',
+      teacherPhoto: teacher?.profilePicture,
       nextSession: upcoming[0],
     }
   })

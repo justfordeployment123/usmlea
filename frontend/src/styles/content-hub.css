@@ -214,3 +214,166 @@
   .video-modal-card { padding: var(--space-4); }
   .video-modal-header h2 { font-size: var(--text-lg); }
 }
+
+/* ── Paid Playlists ── */
+.ch-playlist-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+}
+
+@media (max-width: 1024px) {
+  .ch-playlist-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+@media (max-width: 640px) {
+  .ch-playlist-grid { grid-template-columns: 1fr; }
+}
+
+.ch-playlist-card {
+  background: #ffffff;
+  border: 1px solid #E0E7FF;
+  border-radius: 14px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  transition: box-shadow 0.2s, border-color 0.2s;
+}
+
+.ch-playlist-card:hover {
+  box-shadow: 0 6px 24px rgba(79,70,229,0.1);
+  border-color: #4F46E5;
+}
+
+.ch-playlist-card__subject {
+  display: inline-block;
+  font-size: 10px;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: #4F46E5;
+  letter-spacing: 0.05em;
+}
+
+.ch-playlist-card__title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #1E1B4B;
+  margin: 0;
+  line-height: 1.35;
+}
+
+.ch-playlist-card__meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 0.8rem;
+  color: #6B7280;
+}
+
+.ch-playlist-card__meta span {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.ch-playlist-card__instructor {
+  font-size: 0.82rem;
+  color: #6B7280;
+  margin: 0;
+}
+
+.ch-playlist-card__price-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 4px;
+}
+
+.ch-playlist-card__price {
+  font-weight: 700;
+  font-size: 1.1rem;
+  color: #4F46E5;
+}
+
+.ch-playlist-card__price--purchased {
+  color: #16a34a;
+  font-weight: 700;
+  font-size: 0.85rem;
+  background: #f0fdf4;
+  padding: 3px 10px;
+  border-radius: 20px;
+  border: 1px solid #bbf7d0;
+}
+
+.ch-playlist-card__btn {
+  display: block;
+  width: 100%;
+  height: 36px;
+  border-radius: 8px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.18s, color 0.18s;
+  margin-top: 6px;
+}
+
+.ch-playlist-card__btn--buy {
+  background: transparent;
+  border: 2px solid #4F46E5;
+  color: #4F46E5;
+}
+
+.ch-playlist-card__btn--buy:hover {
+  background: #EEF2FF;
+}
+
+.ch-playlist-card__btn--watch {
+  background: #4F46E5;
+  border: 2px solid #4F46E5;
+  color: #ffffff;
+}
+
+.ch-playlist-card__btn--watch:hover {
+  background: #3730A3;
+  border-color: #3730A3;
+}
+
+/* Playlist modal video list */
+.ch-playlist-modal-videos {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 420px;
+  overflow-y: auto;
+  margin-top: 12px;
+}
+
+.ch-playlist-modal-video-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: 1px solid #E0E7FF;
+  background: #FAFBFF;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.ch-playlist-modal-video-row:hover {
+  background: #EEF2FF;
+}
+
+.ch-playlist-modal-video-row__title {
+  flex: 1;
+  font-size: 0.88rem;
+  font-weight: 500;
+  color: #1E1B4B;
+}
+
+.ch-playlist-modal-video-row__duration {
+  font-size: 0.78rem;
+  color: #6B7280;
+  white-space: nowrap;
+}

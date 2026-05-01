@@ -10,18 +10,19 @@
 }
 
 .admin-sidebar {
-  width: 280px;
+  width: 240px;
   background: #1E1B4B;
   color: #dcecff;
   display: flex;
   flex-direction: column;
   padding: 1rem;
-  gap: 1rem;
+  gap: 0.75rem;
   position: fixed;
   top: 0;
   left: 0;
   bottom: 0;
   z-index: 200;
+  overflow: hidden;
 }
 
 .admin-sidebar__brand {
@@ -66,19 +67,49 @@
 .admin-sidebar__nav {
   display: flex;
   flex-direction: column;
-  gap: 0.3rem;
-  margin-top: 0.5rem;
+  gap: 0.15rem;
+  margin-top: 0.25rem;
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,0.12) transparent;
+}
+
+.admin-sidebar__nav::-webkit-scrollbar {
+  width: 4px;
+}
+.admin-sidebar__nav::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.12);
+  border-radius: 99px;
+}
+
+.admin-sidebar__group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  margin-bottom: 0.5rem;
+}
+
+.admin-sidebar__group-label {
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: rgba(255,255,255,0.35);
+  padding: 0.5rem 0.75rem 0.2rem;
 }
 
 .admin-sidebar__link {
   display: flex;
   align-items: center;
-  gap: 0.6rem;
-  color: rgba(255, 255, 255, 0.75);
+  gap: 0.55rem;
+  color: rgba(255, 255, 255, 0.72);
   text-decoration: none;
-  padding: 0.65rem 0.75rem;
-  border-radius: 10px;
-  transition: all 0.2s ease;
+  padding: 0.48rem 0.75rem;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  transition: all 0.15s ease;
 }
 
 .admin-sidebar__link:hover {
@@ -111,24 +142,36 @@
 .admin-sidebar__avatar {
   width: 32px;
   height: 32px;
+  min-width: 32px;
   border-radius: 50%;
   background: #4F46E5;
   color: #fff;
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
 }
 
 .admin-sidebar__user strong {
   display: block;
   color: #fff;
-  font-size: 0.85rem;
+  font-size: 0.82rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .admin-sidebar__user span {
   display: block;
   color: #b8d1eb;
-  font-size: 0.75rem;
+  font-size: 0.72rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-sidebar__user > div {
+  min-width: 0;
 }
 
 .admin-sidebar__logout {
@@ -150,7 +193,7 @@
 
 .admin-main {
   flex: 1;
-  margin-left: 280px;
+  margin-left: 240px;
   min-height: 100vh;
   display: flex;
   flex-direction: column;

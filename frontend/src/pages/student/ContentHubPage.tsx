@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation } from 'react-router-dom'
-import { FileText, PlayCircle, Search, BookOpen } from 'lucide-react'
+import { FileText, PlayCircle, Search, BookOpen, ListVideo, Play, Lock } from 'lucide-react'
 import {
   CATEGORIES,
   DEFAULT_DEMO_PDF_URL,
@@ -10,9 +10,15 @@ import {
   type PdfResource,
   type VideoResource,
 } from '../../data/contentVault'
+import {
+  PAID_PLAYLISTS,
+  getPurchasedIds,
+  purchasePlaylist,
+  type PaidPlaylist,
+} from '../../data/paidPlaylists'
 import '../../styles/content-hub.css'
 
-type HubTab = 'videos' | 'pdfs'
+type HubTab = 'videos' | 'pdfs' | 'playlists'
 
 interface HubLocationState {
   openVideoId?: string
@@ -30,6 +36,11 @@ export default function ContentHubPage() {
   const [pdfProgressById, setPdfProgressById] = useState<Record<string, number>>(() =>
     Object.fromEntries(PDFS.map(pdf => [pdf.id, pdf.progress])),
   )
+
+  // Playlist state
+  const [purchasedIds, setPurchasedIds] = useState<string[]>(() => getPurchasedIds())
+  const [selectedPlaylist, setSelectedPlaylist] = useState<PaidPlaylist | null>(null)
+  const [playlistVideoUrl, setPlaylistVideoUrl] = useState<string | null>(null)
 
   useEffect(() => {
     const state = location.state as HubLocationState | null
@@ -73,6 +84,21 @@ export default function ContentHubPage() {
     pdfPreviewStartedAtRef.current = null
   }
 
+  const handleBuyPlaylist = (id: string) => {
+    purchasePlaylist(id)
+    setPurchasedIds(getPurchasedIds())
+  }
+
+  const openPlaylistModal = (playlist: PaidPlaylist) => {
+    setSelectedPlaylist(playlist)
+    setPlaylistVideoUrl(null)
+  }
+
+  const closePlaylistModal = () => {
+    setSelectedPlaylist(null)
+    setPlaylistVideoUrl(null)
+  }
+
   const filteredVideos = useMemo(
     () =>
       VIDEOS.filter(video => {
@@ -114,6 +140,12 @@ export default function ContentHubPage() {
           >
             <FileText size={16} /> PDFs
           </button>
+          <button
+            className={`tab-btn ${activeTab === 'playlists' ? 'active' : ''}`}
+            onClick={() => setActiveTab('playlists')}
+          >
+            <ListVideo size={16} /> Playlists
+          </button>
         </div>
 
         <div className="search-bar">
@@ -127,18 +159,20 @@ export default function ContentHubPage() {
         </div>
       </div>
 
-      <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '1.5rem' }}>
-        {CATEGORIES.map(category => (
-          <button
-            key={category}
-            className={`mode-btn ${activeCategory === category ? 'active' : ''}`}
-            style={{ flex: '0 0 auto', padding: '0.45rem 0.8rem' }}
-            onClick={() => setActiveCategory(category)}
-          >
-            {category}
-          </button>
-        ))}
-      </div>
+      {activeTab !== 'playlists' && (
+        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '1.5rem' }}>
+          {CATEGORIES.map(category => (
+            <button
+              key={category}
+              className={`mode-btn ${activeCategory === category ? 'active' : ''}`}
+              style={{ flex: '0 0 auto', padding: '0.45rem 0.8rem' }}
+              onClick={() => setActiveCategory(category)}
+            >
+              {category}
+            </button>
+          ))}
+        </div>
+      )}
 
       {activeTab === 'videos' ? (
         <div className="video-grid">
@@ -173,7 +207,7 @@ export default function ContentHubPage() {
             </article>
           ))}
         </div>
-      ) : (
+      ) : activeTab === 'pdfs' ? (
         <div className="pdf-grid">
           {filteredPdfs.map(pdf => {
             const pdfProgress = pdfProgressById[pdf.id] ?? pdf.progress
@@ -210,8 +244,50 @@ export default function ContentHubPage() {
             )
           })}
         </div>
+      ) : (
+        /* ── Playlists Tab ── */
+        <div className="ch-playlist-grid">
+          {PAID_PLAYLISTS.map(playlist => {
+            const isPurchased = purchasedIds.includes(playlist.id)
+            return (
+              <div className="ch-playlist-card" key={playlist.id}>
+                <span className="ch-playlist-card__subject">{playlist.subject}</span>
+                <h3 className="ch-playlist-card__title">{playlist.title}</h3>
+                <p className="ch-playlist-card__instructor">{playlist.instructor}</p>
+                <div className="ch-playlist-card__meta">
+                  <span>{playlist.videoCount} videos</span>
+                  <span style={{ color: '#D1D5DB' }}>·</span>
+                  <span>{playlist.totalDuration}</span>
+                </div>
+                <div className="ch-playlist-card__price-row">
+                  {isPurchased ? (
+                    <span className="ch-playlist-card__price--purchased">Purchased</span>
+                  ) : (
+                    <span className="ch-playlist-card__price">${playlist.price}</span>
+                  )}
+                </div>
+                {isPurchased ? (
+                  <button
+                    className="ch-playlist-card__btn ch-playlist-card__btn--watch"
+                    onClick={() => openPlaylistModal(playlist)}
+                  >
+                    Watch Playlist
+                  </button>
+                ) : (
+                  <button
+                    className="ch-playlist-card__btn ch-playlist-card__btn--buy"
+                    onClick={() => handleBuyPlaylist(playlist.id)}
+                  >
+                    Buy · ${playlist.price}
+                  </button>
+                )}
+              </div>
+            )
+          })}
+        </div>
       )}
 
+      {/* Video modal (existing resources) */}
       {selectedVideo ? (
         <div className="video-modal-backdrop" role="dialog" aria-modal="true" aria-label="Video preview modal">
           <div className="video-modal-card">
@@ -243,6 +319,7 @@ export default function ContentHubPage() {
         </div>
       ) : null}
 
+      {/* PDF modal */}
       {selectedPdf ? (
         <div className="video-modal-backdrop" role="dialog" aria-modal="true" aria-label="PDF preview modal">
           <div className="video-modal-card pdf-modal-card">
@@ -268,6 +345,110 @@ export default function ContentHubPage() {
 
             <p className="video-modal-note">
               Demo mode: sample document preview for learner PDF reading experience.
+            </p>
+          </div>
+        </div>
+      ) : null}
+
+      {/* Playlist watch modal */}
+      {selectedPlaylist ? (
+        <div
+          className="video-modal-backdrop"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Playlist modal"
+        >
+          <div className="video-modal-card" style={{ width: 'min(760px, 100%)' }}>
+            <div className="video-modal-header">
+              <div>
+                <p className="video-modal-subject">{selectedPlaylist.subject}</p>
+                <h2>{selectedPlaylist.title}</h2>
+                <p style={{ margin: '4px 0 0', fontSize: '0.85rem', color: '#6B7280' }}>
+                  {selectedPlaylist.instructor} · {selectedPlaylist.videoCount} videos · {selectedPlaylist.totalDuration}
+                </p>
+              </div>
+              <button
+                className="video-modal-close"
+                onClick={closePlaylistModal}
+                aria-label="Close playlist"
+              >
+                ✕
+              </button>
+            </div>
+
+            {playlistVideoUrl ? (
+              <>
+                <video
+                  className="video-modal-player"
+                  controls
+                  controlsList="nodownload"
+                  disablePictureInPicture
+                  autoPlay
+                  preload="metadata"
+                  src={playlistVideoUrl}
+                  onContextMenu={event => event.preventDefault()}
+                />
+                <button
+                  onClick={() => setPlaylistVideoUrl(null)}
+                  style={{
+                    marginTop: '0.75rem',
+                    background: 'transparent',
+                    border: '1px solid #E0E7FF',
+                    borderRadius: 6,
+                    padding: '0.35rem 0.9rem',
+                    fontSize: '0.82rem',
+                    color: '#4F46E5',
+                    cursor: 'pointer',
+                    fontWeight: 600,
+                  }}
+                >
+                  Back to video list
+                </button>
+              </>
+            ) : (
+              <div className="ch-playlist-modal-videos">
+                {selectedPlaylist.videos.map((video, idx) => (
+                  <div
+                    key={video.id}
+                    className="ch-playlist-modal-video-row"
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => setPlaylistVideoUrl(DEFAULT_DEMO_VIDEO_URL)}
+                    onKeyDown={event => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault()
+                        setPlaylistVideoUrl(DEFAULT_DEMO_VIDEO_URL)
+                      }
+                    }}
+                  >
+                    <Play size={16} color="#4F46E5" style={{ flexShrink: 0 }} />
+                    <span className="ch-playlist-modal-video-row__title">
+                      {idx + 1}. {video.title}
+                      {video.free && (
+                        <span
+                          style={{
+                            marginLeft: 8,
+                            fontSize: '0.72rem',
+                            color: '#16a34a',
+                            fontWeight: 700,
+                            background: '#f0fdf4',
+                            padding: '1px 6px',
+                            borderRadius: 10,
+                            border: '1px solid #bbf7d0',
+                          }}
+                        >
+                          Free Preview
+                        </span>
+                      )}
+                    </span>
+                    <span className="ch-playlist-modal-video-row__duration">{video.duration}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <p className="video-modal-note" style={{ marginTop: '0.75rem' }}>
+              Demo mode: all playlist videos play a placeholder stream to preview the learner experience.
             </p>
           </div>
         </div>
