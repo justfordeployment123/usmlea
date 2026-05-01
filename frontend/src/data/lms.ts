@@ -26,17 +26,17 @@ import type {
 const KEYS = {
   teachers: 'nextgen.lms.teachers',
   editors: 'nextgen.lms.editors',
-  products: 'nextgen.lms.products',
-  classes: 'nextgen.lms.classes',
-  sessions: 'nextgen.lms.sessions',
-  notices: 'nextgen.lms.notices',
+  products: 'nextgen.lms.products-v2',
+  classes: 'nextgen.lms.classes-v2',
+  sessions: 'nextgen.lms.sessions-v2',
+  notices: 'nextgen.lms.notices-v2',
   demoOverrides: 'nextgen.lms.demo-overrides',
   teacherPasswords: 'nextgen.lms.teacher-passwords',
   editorPasswords: 'nextgen.lms.editor-passwords',
-  chatMessages: 'nextgen.lms.chat-messages',
+  chatMessages: 'nextgen.lms.chat-messages-v2',
   coupons: 'nextgen.lms.coupons',
   lmsNotifications: 'nextgen.lms.notifications',
-  enrollments: 'nextgen.lms.enrollments',
+  enrollments: 'nextgen.lms.enrollments-v2',
 }
 
 // Passwords stored separately (never in the main records, mirrors real auth separation)
@@ -126,6 +126,17 @@ function seedProducts(): Product[] {
       classIds: ['class-001'],
       createdAt: '2026-01-01T00:00:00Z',
     },
+    {
+      id: 'product-002',
+      name: 'USMLE Step 2 CK Prep',
+      description: 'Focused clinical reasoning sessions for Step 2 CK. Covers internal medicine, surgery, and high-yield clinical vignettes.',
+      upfrontPrice: 349,
+      installmentAmount: 119,
+      installmentMonths: 3,
+      isActive: true,
+      classIds: ['class-002'],
+      createdAt: '2026-02-01T00:00:00Z',
+    },
   ]
 }
 
@@ -140,25 +151,36 @@ function seedClasses(): LmsClass[] {
       defaultDurationMinutes: 90,
       enrolledStudentIds: ['student-mock-001', 'student-mock-002', 'student-mock-003'],
     },
+    {
+      id: 'class-002',
+      productId: 'product-002',
+      name: 'Step 2 CK Weekend Batch',
+      description: 'Weekend sessions focused on clinical reasoning, case-based discussions, and exam strategy for Step 2 CK.',
+      teacherId: 'teacher-001',
+      defaultDurationMinutes: 120,
+      enrolledStudentIds: ['student-mock-001'],
+    },
   ]
 }
 
 function seedSessions(): LmsSession[] {
   const now = new Date()
 
-  // Completed session: yesterday at 10 AM
   const yesterday = new Date(now)
   yesterday.setDate(yesterday.getDate() - 1)
   yesterday.setHours(10, 0, 0, 0)
 
-  // Live session: started 20 minutes ago
   const liveStart = new Date(now)
   liveStart.setMinutes(liveStart.getMinutes() - 20)
 
-  // Scheduled session: tomorrow at 10 AM
   const tomorrow = new Date(now)
   tomorrow.setDate(tomorrow.getDate() + 1)
   tomorrow.setHours(10, 0, 0, 0)
+
+  const nextSaturday = new Date(now)
+  const daysUntilSat = (6 - nextSaturday.getDay() + 7) % 7 || 7
+  nextSaturday.setDate(nextSaturday.getDate() + daysUntilSat)
+  nextSaturday.setHours(9, 0, 0, 0)
 
   return [
     {
@@ -190,6 +212,15 @@ function seedSessions(): LmsSession[] {
       durationMinutes: 90,
       status: 'scheduled',
       meetingLink: 'https://zoom.us/j/mock-session-003',
+      createdAt: new Date().toISOString(),
+    },
+    {
+      id: 'session-004',
+      classId: 'class-002',
+      scheduledAt: nextSaturday.toISOString(),
+      durationMinutes: 120,
+      status: 'scheduled',
+      meetingLink: 'https://zoom.us/j/mock-session-004',
       createdAt: new Date().toISOString(),
     },
   ]
@@ -328,38 +359,56 @@ function seedChatMessages(): ChatMessage[] {
     {
       id: 'msg-001',
       classId: 'class-001',
-      studentId: 'student-mock-001',
+      senderId: 'student-mock-001',
+      senderName: 'Ali Hassan',
       senderRole: 'student',
       text: "Hi Dr. Carter! I had a question about the enzyme kinetics from last session. Could you clarify the difference between competitive and non-competitive inhibition?",
       sentAt: '2026-04-22T10:05:00Z',
-      read: true,
     },
     {
       id: 'msg-002',
       classId: 'class-001',
-      studentId: 'student-mock-001',
+      senderId: 'teacher-001',
+      senderName: 'Dr. Sarah Carter',
       senderRole: 'teacher',
       text: "Great question! Competitive inhibition increases apparent Km but Vmax stays the same — adding more substrate overcomes it. Non-competitive inhibition decreases Vmax but doesn't change Km. Competitive inhibitors compete for the active site; non-competitive ones bind elsewhere.",
       sentAt: '2026-04-22T10:12:00Z',
-      read: true,
     },
     {
       id: 'msg-003',
       classId: 'class-001',
-      studentId: 'student-mock-001',
+      senderId: 'student-mock-001',
+      senderName: 'Ali Hassan',
       senderRole: 'student',
       text: "That makes sense! So for USMLE: competitive = same Vmax, higher Km. Non-competitive = lower Vmax, same Km?",
       sentAt: '2026-04-22T10:18:00Z',
-      read: true,
     },
     {
       id: 'msg-004',
       classId: 'class-001',
-      studentId: 'student-mock-001',
+      senderId: 'teacher-001',
+      senderName: 'Dr. Sarah Carter',
       senderRole: 'teacher',
       text: "Exactly! That's the high-yield way to remember it. Uncompetitive inhibition (less common on Step 1) decreases BOTH Vmax and Km. I'll include this in tomorrow's session summary.",
       sentAt: '2026-04-22T10:20:00Z',
-      read: false,
+    },
+    {
+      id: 'msg-005',
+      classId: 'class-001',
+      senderId: 'student-mock-002',
+      senderName: 'Fatima Malik',
+      senderRole: 'student',
+      text: "Thank you! Also, will the pharmacology section cover MOAs in detail or just high-yield points?",
+      sentAt: '2026-04-22T10:25:00Z',
+    },
+    {
+      id: 'msg-006',
+      classId: 'class-001',
+      senderId: 'teacher-001',
+      senderName: 'Dr. Sarah Carter',
+      senderRole: 'teacher',
+      text: "We'll cover the high-yield MOAs that are board-relevant. I'll share a PDF summary before Thursday's session.",
+      sentAt: '2026-04-22T10:28:00Z',
     },
   ]
 }
@@ -456,6 +505,7 @@ function seedEnrollments(): StudentEnrollment[] {
     { studentId: 'student-mock-001', classId: 'class-001', enrolledAt: '2026-01-15T00:00:00Z' },
     { studentId: 'student-mock-002', classId: 'class-001', enrolledAt: '2026-01-17T00:00:00Z', demoExpiresAt: '2026-05-01T00:00:00Z' },
     { studentId: 'student-mock-003', classId: 'class-001', enrolledAt: '2026-01-20T00:00:00Z', demoExpiresAt: '2026-04-25T00:00:00Z' },
+    { studentId: 'student-mock-001', classId: 'class-002', enrolledAt: '2026-02-10T00:00:00Z' },
   ]
 }
 

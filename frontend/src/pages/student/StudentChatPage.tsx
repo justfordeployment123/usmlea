@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { Send, ChevronLeft, Shield, Users } from 'lucide-react'
+import { Send, ChevronLeft, Users } from 'lucide-react'
 import { getGroupChatMessages, sendGroupChatMessage, getClassById } from '../../services/lmsApi'
 import { useStudentAuth } from '../../context/StudentAuthContext'
 import type { ChatMessage, LmsClass } from '../../types/lms'
@@ -11,7 +11,13 @@ function formatTime(d: string) {
 }
 
 function formatDate(d: string) {
-  return new Date(d).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })
+  const date = new Date(d)
+  const today = new Date()
+  const yesterday = new Date()
+  yesterday.setDate(today.getDate() - 1)
+  if (date.toDateString() === today.toDateString()) return 'Today'
+  if (date.toDateString() === yesterday.toDateString()) return 'Yesterday'
+  return date.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })
 }
 
 function isSameDay(a: string, b: string) {
@@ -27,6 +33,7 @@ export default function StudentChatPage() {
   const [text, setText] = useState('')
   const [sending, setSending] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   useEffect(() => {
     if (!classId) return
@@ -50,6 +57,7 @@ export default function StudentChatPage() {
     setMessages(prev => [...prev, msg])
     setText('')
     setSending(false)
+    setTimeout(() => textareaRef.current?.focus(), 0)
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
@@ -57,90 +65,156 @@ export default function StudentChatPage() {
   }
 
   return (
-    <div className="lms-session-page">
-      <div className="lms-session-header">
-        <div>
-          <Link to={`/student/classes/${classId}/session`} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: '0.82rem', color: '#6B7280', textDecoration: 'none', marginBottom: 6 }}>
-            <ChevronLeft size={14} /> Back to Class
-          </Link>
-          <h1 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#1E1B4B', margin: 0 }}>
-            {cls?.name ?? 'Class'} — Group Chat
-          </h1>
-          <p style={{ margin: '3px 0 0', fontSize: '0.8rem', color: '#6B7280', display: 'flex', alignItems: 'center', gap: 5 }}>
-            <Users size={12} /> All students and teacher
-          </p>
+    <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 80px)', background: '#F8F9FC' }}>
+
+      {/* Header */}
+      <div style={{ background: '#fff', borderBottom: '1px solid #E0E7FF', padding: '12px 20px', display: 'flex', alignItems: 'center', gap: 14, flexShrink: 0 }}>
+        <Link
+          to={`/student/classes/${classId}/session`}
+          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 32, height: 32, borderRadius: 8, border: '1px solid #E0E7FF', color: '#6B7280', textDecoration: 'none', flexShrink: 0 }}
+        >
+          <ChevronLeft size={16} />
+        </Link>
+        <div style={{ width: 38, height: 38, borderRadius: '50%', background: 'linear-gradient(135deg, #4F46E5, #3730A3)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          <Users size={16} color="#fff" />
         </div>
-        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 10px', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8, fontSize: '0.72rem', fontWeight: 600, color: '#92400e' }}>
-          <Shield size={11} /> Supervised by admin
+        <div style={{ flex: 1 }}>
+          <div style={{ fontWeight: 700, fontSize: '0.95rem', color: '#1E1B4B' }}>
+            {cls?.name ?? 'Class'} — Group Chat
+          </div>
+          <div style={{ fontSize: '0.75rem', color: '#6B7280', marginTop: 1 }}>
+            All students and teacher
+          </div>
+        </div>
+        <div style={{ fontSize: '0.7rem', fontWeight: 600, color: '#92400e', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 6, padding: '3px 8px' }}>
+          Supervised
         </div>
       </div>
 
-      <div style={{ background: '#fff', border: '1px solid #E0E7FF', borderRadius: 14, display: 'flex', flexDirection: 'column', minHeight: 520 }}>
-        <div className="chat-privacy-bar">
-          All messages are visible to everyone in this class and monitored by platform supervisors.
-        </div>
-
-        <div className="chat-messages" style={{ flex: 1 }}>
-          {messages.length === 0 ? (
-            <div className="chat-empty">
-              <Users size={32} style={{ opacity: 0.25 }} />
-              <p>No messages yet — start the conversation!</p>
+      {/* Messages */}
+      <div style={{ flex: 1, overflowY: 'auto', padding: '20px 20px 8px' }}>
+        {messages.length === 0 ? (
+          <div style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#9CA3AF', gap: 10 }}>
+            <div style={{ width: 52, height: 52, borderRadius: '50%', background: '#EEF2FF', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Users size={22} color="#C7D2FE" />
             </div>
-          ) : (
-            messages.map((msg, idx) => {
+            <p style={{ margin: 0, fontWeight: 600, color: '#6B7280', fontSize: '0.9rem' }}>No messages yet</p>
+            <p style={{ margin: 0, fontSize: '0.8rem' }}>Start the class discussion!</p>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            {messages.map((msg, idx) => {
               const isMe = msg.senderId === user?.id
               const isTeacher = msg.senderRole === 'teacher'
               const showDate = idx === 0 || !isSameDay(messages[idx - 1].sentAt, msg.sentAt)
-              const showName = !isMe && (idx === 0 || messages[idx - 1].senderId !== msg.senderId)
+              const prevMsg = messages[idx - 1]
+              const showAvatar = !isMe && (idx === 0 || prevMsg.senderId !== msg.senderId || showDate)
+              const showName = !isMe && showAvatar
+              const isLastInGroup = isMe
+                ? (idx === messages.length - 1 || messages[idx + 1].senderId !== msg.senderId)
+                : false
 
               return (
                 <div key={msg.id}>
                   {showDate && (
-                    <div style={{ textAlign: 'center', margin: '0.75rem 0', fontSize: '0.72rem', color: '#9CA3AF', fontWeight: 600 }}>
-                      {formatDate(msg.sentAt)}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '16px 0 12px' }}>
+                      <div style={{ flex: 1, height: 1, background: '#E5E7EB' }} />
+                      <span style={{ fontSize: '0.72rem', color: '#9CA3AF', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                        {formatDate(msg.sentAt)}
+                      </span>
+                      <div style={{ flex: 1, height: 1, background: '#E5E7EB' }} />
                     </div>
                   )}
-                  <div className={`chat-message ${isMe ? 'chat-message--right' : 'chat-message--left'}`}>
+
+                  <div style={{
+                    display: 'flex',
+                    flexDirection: isMe ? 'row-reverse' : 'row',
+                    alignItems: 'flex-end',
+                    gap: 8,
+                    marginBottom: isLastInGroup ? 6 : 2,
+                  }}>
+                    {/* Avatar — only for others, only at bottom of a group */}
                     {!isMe && (
-                      <div className={`chat-message__avatar ${isTeacher ? 'chat-message__avatar--teacher' : 'chat-message__avatar--student'}`}>
+                      <div style={{
+                        width: 30, height: 30, borderRadius: '50%', flexShrink: 0,
+                        background: isTeacher ? '#1E1B4B' : '#4F46E5',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: '11px', fontWeight: 700, color: '#fff',
+                        visibility: showAvatar ? 'visible' : 'hidden',
+                        alignSelf: 'flex-end',
+                      }}>
                         {msg.senderName[0]?.toUpperCase()}
                       </div>
                     )}
-                    <div className="chat-message__body">
-                      {showName && !isMe && (
-                        <div style={{ fontSize: '0.72rem', fontWeight: 700, color: isTeacher ? '#4F46E5' : '#374151', marginBottom: 2 }}>
-                          {isTeacher ? `${msg.senderName} (Teacher)` : msg.senderName}
+
+                    <div style={{ maxWidth: '68%', display: 'flex', flexDirection: 'column', gap: 1, alignItems: isMe ? 'flex-end' : 'flex-start' }}>
+                      {showName && (
+                        <div style={{ fontSize: '0.72rem', fontWeight: 700, color: isTeacher ? '#4F46E5' : '#374151', marginBottom: 3, paddingLeft: 4 }}>
+                          {isTeacher ? `${msg.senderName} · Teacher` : msg.senderName}
                         </div>
                       )}
-                      <div className="chat-message__bubble">{msg.text}</div>
-                      <div className="chat-message__meta">{formatTime(msg.sentAt)}</div>
-                    </div>
-                    {isMe && (
-                      <div className="chat-message__avatar chat-message__avatar--student">
-                        {user?.name?.[0]?.toUpperCase() ?? 'S'}
+                      <div style={{
+                        padding: '9px 14px',
+                        borderRadius: isMe
+                          ? '18px 18px 4px 18px'
+                          : '18px 18px 18px 4px',
+                        background: isMe ? '#4F46E5' : '#fff',
+                        color: isMe ? '#fff' : '#1E1B4B',
+                        fontSize: '0.87rem',
+                        lineHeight: 1.5,
+                        wordBreak: 'break-word',
+                        boxShadow: isMe ? 'none' : '0 1px 2px rgba(0,0,0,0.06)',
+                        border: isMe ? 'none' : '1px solid #E9ECF2',
+                      }}>
+                        {msg.text}
                       </div>
-                    )}
+                      <div style={{ fontSize: '0.67rem', color: '#9CA3AF', paddingInline: 4, marginTop: 2 }}>
+                        {formatTime(msg.sentAt)}
+                      </div>
+                    </div>
+
+                    {/* Spacer for "me" side so avatar area is reserved */}
+                    {isMe && <div style={{ width: 30, flexShrink: 0 }} />}
                   </div>
                 </div>
               )
-            })
-          )}
-          <div ref={bottomRef} />
-        </div>
+            })}
+            <div ref={bottomRef} />
+          </div>
+        )}
+      </div>
 
-        <div className="chat-input-bar">
-          <textarea
-            className="chat-input-bar__textarea"
-            value={text}
-            onChange={e => setText(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="Message the group… (Enter to send, Shift+Enter for newline)"
-            rows={1}
-          />
-          <button className="chat-input-bar__send" onClick={handleSend} disabled={!text.trim() || sending}>
-            <Send size={15} /> Send
-          </button>
-        </div>
+      {/* Input */}
+      <div style={{ background: '#fff', borderTop: '1px solid #E0E7FF', padding: '12px 20px', display: 'flex', gap: 10, alignItems: 'flex-end', flexShrink: 0 }}>
+        <textarea
+          ref={textareaRef}
+          value={text}
+          onChange={e => setText(e.target.value)}
+          onKeyDown={handleKeyDown}
+          placeholder="Message the group…"
+          rows={1}
+          style={{
+            flex: 1, padding: '10px 14px', border: '1px solid #E0E7FF', borderRadius: 12,
+            fontSize: '0.87rem', fontFamily: 'inherit', resize: 'none',
+            minHeight: 42, maxHeight: 120, lineHeight: 1.5, color: '#1E1B4B',
+            background: '#F8F9FC', outline: 'none', transition: 'border-color 0.15s',
+          }}
+          onFocus={e => (e.target.style.borderColor = '#4F46E5')}
+          onBlur={e => (e.target.style.borderColor = '#E0E7FF')}
+        />
+        <button
+          onClick={handleSend}
+          disabled={!text.trim() || sending}
+          style={{
+            width: 42, height: 42, borderRadius: 12, border: 'none', cursor: 'pointer',
+            background: text.trim() && !sending ? '#4F46E5' : '#E0E7FF',
+            color: text.trim() && !sending ? '#fff' : '#9CA3AF',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            flexShrink: 0, transition: 'background 0.15s',
+          }}
+        >
+          <Send size={16} />
+        </button>
       </div>
     </div>
   )

@@ -4,7 +4,7 @@ import { useStudentAuth } from '../../context/StudentAuthContext'
 import { studentGetEnrolledClasses } from '../../services/lmsApi'
 import type { ClassWithProduct } from '../../types/lms'
 import '../../styles/lms-student.css'
-import { Video, GraduationCap, CheckCircle2, Calendar, Clock } from 'lucide-react'
+import { Video, GraduationCap, Calendar, Clock } from 'lucide-react'
 
 function isToday(dateStr: string): boolean {
   const d = new Date(dateStr)
@@ -110,19 +110,6 @@ function CountdownChip({ cls }: CountdownChipProps) {
   )
 }
 
-// Mock attendance data since backend isn't connected
-const MOCK_ATTENDANCE: Record<string, { attended: number; total: number }> = {}
-
-function getAttendance(classId: string): { attended: number; total: number } {
-  if (!MOCK_ATTENDANCE[classId]) {
-    MOCK_ATTENDANCE[classId] = {
-      attended: Math.floor(Math.random() * 5) + 5,
-      total: 10,
-    }
-  }
-  return MOCK_ATTENDANCE[classId]
-}
-
 function getFirstName(fullName: string): string {
   return fullName.split(' ')[0] ?? fullName
 }
@@ -200,7 +187,6 @@ export default function MyClassesPage() {
         <div className="lms-classes-grid">
           {classes.map(cls => {
             const isLive = cls.nextSession?.status === 'live'
-            const attendance = getAttendance(cls.id)
             const teacherFirstName = `Dr. ${getFirstName(cls.teacherName)}`
 
             return (
@@ -219,11 +205,6 @@ export default function MyClassesPage() {
                 </div>
 
                 <CountdownChip cls={cls} />
-
-                <div className="lms-class-card__attendance">
-                  <CheckCircle2 size={12} />
-                  {attendance.attended}/{attendance.total} sessions attended
-                </div>
 
                 <div className="lms-class-card__actions">
                   {isLive ? (

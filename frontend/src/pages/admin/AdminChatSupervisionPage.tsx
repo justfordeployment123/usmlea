@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { Shield, Trash2, Users, Eye } from 'lucide-react'
+import { Shield, Trash2, Users, Eye, MessageSquare } from 'lucide-react'
 import { getAllClassesWithProducts, getGroupChatMessages, deleteChatMessage } from '../../services/lmsApi'
 import type { ClassWithProduct, ChatMessage } from '../../types/lms'
 import '../../styles/chat.css'
@@ -20,13 +20,21 @@ export default function AdminChatSupervisionPage() {
   const [classes, setClasses] = useState<ClassWithProduct[]>([])
   const [selectedClassId, setSelectedClassId] = useState<string>('')
   const [messages, setMessages] = useState<ChatMessage[]>([])
+  const [msgCounts, setMsgCounts] = useState<Record<string, number>>({})
   const [toast, setToast] = useState<string | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    getAllClassesWithProducts().then(cls => {
+    getAllClassesWithProducts().then(async cls => {
       setClasses(cls)
       if (cls[0]) setSelectedClassId(cls[0].id)
+      // load message counts for all classes for sidebar preview
+      const counts: Record<string, number> = {}
+      await Promise.all(cls.map(async c => {
+        const msgs = await getGroupChatMessages(c.id)
+        counts[c.id] = msgs.length
+      }))
+      setMsgCounts(counts)
     })
   }, [])
 
@@ -47,6 +55,7 @@ export default function AdminChatSupervisionPage() {
   async function handleDelete(messageId: string) {
     await deleteChatMessage(messageId)
     setMessages(prev => prev.filter(m => m.id !== messageId))
+    setMsgCounts(prev => ({ ...prev, [selectedClassId]: Math.max(0, (prev[selectedClassId] ?? 1) - 1) }))
     showToast('Message deleted')
   }
 
@@ -54,98 +63,125 @@ export default function AdminChatSupervisionPage() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      <div style={{ background: '#fff', border: '1px solid #E0E7FF', borderRadius: 14, padding: '18px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+      {/* Header */}
+      <div style={{ background: '#fff', border: '1px solid #E0E7FF', borderRadius: 14, padding: '16px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
           <h1 style={{ fontSize: '1.15rem', fontWeight: 800, color: '#1E1B4B', margin: 0 }}>Chat Supervision</h1>
-          <p style={{ fontSize: '0.83rem', color: '#6B7280', margin: '3px 0 0' }}>Monitor group chats per class. Admin can delete any message.</p>
+          <p style={{ fontSize: '0.83rem', color: '#6B7280', margin: '3px 0 0' }}>Monitor group chats per class. Select a class from the left panel.</p>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <select
-            value={selectedClassId}
-            onChange={e => setSelectedClassId(e.target.value)}
-            style={{ padding: '7px 12px', border: '1px solid #C7D2FE', borderRadius: 8, fontSize: '0.83rem', color: '#374151', background: '#fff' }}
-          >
-            {classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '5px 10px', background: '#EEF2FF', border: '1px solid #C7D2FE', borderRadius: 8, fontSize: '0.72rem', fontWeight: 600, color: '#3730A3' }}>
-            <Shield size={12} /> Admin Supervision
-          </div>
+        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '5px 10px', background: '#EEF2FF', border: '1px solid #C7D2FE', borderRadius: 8, fontSize: '0.72rem', fontWeight: 600, color: '#3730A3' }}>
+          <Shield size={12} /> Admin Supervision
         </div>
       </div>
 
-      <div style={{ background: '#fff', border: '1px solid #E0E7FF', borderRadius: 14, display: 'flex', flexDirection: 'column', minHeight: 560 }}>
-        {selectedClass && (
-          <div style={{ padding: '14px 20px', borderBottom: '1px solid #EEF2FF', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div>
-              <div style={{ fontWeight: 700, fontSize: '0.95rem', color: '#1E1B4B' }}>{selectedClass.name} — Group Chat</div>
-              <div style={{ fontSize: '0.78rem', color: '#6B7280', display: 'flex', alignItems: 'center', gap: 4, marginTop: 2 }}>
-                <Users size={12} /> All students and teacher
-              </div>
-            </div>
-            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 10px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, fontSize: '0.72rem', fontWeight: 600, color: '#dc2626' }}>
-              <Eye size={11} /> Admin View — Read Only
-            </div>
-          </div>
-        )}
+      {/* Two-panel layout */}
+      <div className="chat-panel">
 
-        <div className="chat-supervision-bar" style={{ borderRadius: 0 }}>
-          <Shield size={12} />
-          Supervision Mode — You can view all messages and delete any inappropriate content.
-        </div>
-
-        <div className="chat-messages" style={{ flex: 1 }}>
-          {messages.length === 0 ? (
-            <div className="chat-empty">
-              <Users size={32} style={{ opacity: 0.25 }} />
-              <p>No messages in this group chat yet.</p>
-            </div>
-          ) : (
-            messages.map((msg, idx) => {
-              const isTeacher = msg.senderRole === 'teacher'
-              const showDate = idx === 0 || !isSameDay(messages[idx - 1].sentAt, msg.sentAt)
-              const showName = idx === 0 || messages[idx - 1].senderId !== msg.senderId
-
+        {/* Left sidebar — class list */}
+        <div className="chat-sidebar">
+          <div className="chat-sidebar__header">Classes</div>
+          <div className="chat-sidebar__list">
+            {classes.length === 0 && (
+              <div style={{ padding: '16px 14px', fontSize: '0.8rem', color: '#9CA3AF' }}>No classes found.</div>
+            )}
+            {classes.map(cls => {
+              const count = msgCounts[cls.id] ?? 0
+              const isActive = cls.id === selectedClassId
               return (
-                <div key={msg.id}>
-                  {showDate && (
-                    <div style={{ textAlign: 'center', margin: '0.75rem 0', fontSize: '0.72rem', color: '#9CA3AF', fontWeight: 600 }}>
-                      {formatDate(msg.sentAt)}
-                    </div>
-                  )}
-                  <div className="chat-message chat-message--left" style={{ alignItems: 'flex-start' }}>
-                    <div className={`chat-message__avatar ${isTeacher ? 'chat-message__avatar--teacher' : 'chat-message__avatar--student'}`}>
-                      {msg.senderName[0]?.toUpperCase()}
-                    </div>
-                    <div className="chat-message__body" style={{ flex: 1 }}>
-                      {showName && (
-                        <div style={{ fontSize: '0.72rem', fontWeight: 700, color: isTeacher ? '#4F46E5' : '#374151', marginBottom: 2 }}>
-                          {isTeacher ? `${msg.senderName} (Teacher)` : msg.senderName}
-                        </div>
-                      )}
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <div className="chat-message__bubble">{msg.text}</div>
-                        <button
-                          onClick={() => handleDelete(msg.id)}
-                          title="Delete message"
-                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#d1d5db', padding: 2, flexShrink: 0, lineHeight: 1, transition: 'color 0.15s' }}
-                          onMouseEnter={e => (e.currentTarget.style.color = '#ef4444')}
-                          onMouseLeave={e => (e.currentTarget.style.color = '#d1d5db')}
-                        >
-                          <Trash2 size={13} />
-                        </button>
-                      </div>
-                      <div className="chat-message__meta">{formatTime(msg.sentAt)}</div>
-                    </div>
+                <div
+                  key={cls.id}
+                  className={`chat-sidebar__item ${isActive ? 'chat-sidebar__item--active' : ''}`}
+                  onClick={() => setSelectedClassId(cls.id)}
+                >
+                  <div className="chat-sidebar__name">
+                    {cls.name}
+                    {count > 0 && (
+                      <span className="chat-unread-badge" style={{ background: isActive ? '#fff' : '#4F46E5', color: isActive ? '#4F46E5' : '#fff' }}>
+                        {count}
+                      </span>
+                    )}
                   </div>
+                  <div className="chat-sidebar__preview">{cls.productName}</div>
                 </div>
               )
-            })
-          )}
-          <div ref={bottomRef} />
+            })}
+          </div>
         </div>
 
-        <div className="chat-readonly-note">
-          Read-only supervision view. Click the trash icon next to any message to remove it.
+        {/* Right — chat thread */}
+        <div className="chat-main">
+          {!selectedClass ? (
+            <div className="chat-empty" style={{ flex: 1 }}>
+              <MessageSquare size={32} style={{ opacity: 0.25 }} />
+              <p>Select a class to view its group chat</p>
+            </div>
+          ) : (
+            <>
+              <div className="chat-main__header">
+                <div>
+                  <div className="chat-main__name">{selectedClass.name} — Group Chat</div>
+                  <div className="chat-main__class" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <Users size={11} /> All students and teacher · {selectedClass.productName}
+                  </div>
+                </div>
+                <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 10px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, fontSize: '0.72rem', fontWeight: 600, color: '#dc2626' }}>
+                  <Eye size={11} /> Admin View
+                </div>
+              </div>
+
+              <div className="chat-messages">
+                {messages.length === 0 ? (
+                  <div className="chat-empty">
+                    <Users size={28} style={{ opacity: 0.2 }} />
+                    <p>No messages in this group chat yet.</p>
+                  </div>
+                ) : (
+                  messages.map((msg, idx) => {
+                    const isTeacher = msg.senderRole === 'teacher'
+                    const showDate = idx === 0 || !isSameDay(messages[idx - 1].sentAt, msg.sentAt)
+                    const showName = idx === 0 || messages[idx - 1].senderId !== msg.senderId
+
+                    return (
+                      <div key={msg.id}>
+                        {showDate && (
+                          <div style={{ textAlign: 'center', margin: '0.75rem 0', fontSize: '0.72rem', color: '#9CA3AF', fontWeight: 600 }}>
+                            {formatDate(msg.sentAt)}
+                          </div>
+                        )}
+                        <div className="chat-message chat-message--left" style={{ alignItems: 'flex-start' }}>
+                          <div className={`chat-message__avatar ${isTeacher ? 'chat-message__avatar--teacher' : 'chat-message__avatar--student'}`}>
+                            {msg.senderName[0]?.toUpperCase()}
+                          </div>
+                          <div className="chat-message__body" style={{ flex: 1 }}>
+                            {showName && (
+                              <div style={{ fontSize: '0.72rem', fontWeight: 700, color: isTeacher ? '#4F46E5' : '#374151', marginBottom: 2 }}>
+                                {isTeacher ? `${msg.senderName} (Teacher)` : msg.senderName}
+                              </div>
+                            )}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <div className="chat-message__bubble">{msg.text}</div>
+                              <button
+                                onClick={() => handleDelete(msg.id)}
+                                title="Delete message"
+                                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#d1d5db', padding: 2, flexShrink: 0, lineHeight: 1, transition: 'color 0.15s' }}
+                                onMouseEnter={e => (e.currentTarget.style.color = '#ef4444')}
+                                onMouseLeave={e => (e.currentTarget.style.color = '#d1d5db')}
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            </div>
+                            <div className="chat-message__meta">{formatTime(msg.sentAt)}</div>
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })
+                )}
+                <div ref={bottomRef} />
+              </div>
+
+            </>
+          )}
         </div>
       </div>
 
