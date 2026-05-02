@@ -20,27 +20,19 @@ export default function AdminChatSupervisionPage() {
   const [classes, setClasses] = useState<ClassWithProduct[]>([])
   const [selectedClassId, setSelectedClassId] = useState<string>('')
   const [messages, setMessages] = useState<ChatMessage[]>([])
-  const [msgCounts, setMsgCounts] = useState<Record<string, number>>({})
   const [toast, setToast] = useState<string | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    getAllClassesWithProducts().then(async cls => {
+    getAllClassesWithProducts().then(cls => {
       setClasses(cls)
       if (cls[0]) setSelectedClassId(cls[0].id)
-      // load message counts for all classes for sidebar preview
-      const counts: Record<string, number> = {}
-      await Promise.all(cls.map(async c => {
-        const msgs = await getGroupChatMessages(c.id)
-        counts[c.id] = msgs.length
-      }))
-      setMsgCounts(counts)
     })
   }, [])
 
   useEffect(() => {
     if (!selectedClassId) return
-    getGroupChatMessages(selectedClassId).then(setMessages)
+    getGroupChatMessages(selectedClassId, 'admin').then(setMessages)
   }, [selectedClassId])
 
   useEffect(() => {
@@ -85,7 +77,6 @@ export default function AdminChatSupervisionPage() {
               <div style={{ padding: '16px 14px', fontSize: '0.8rem', color: '#9CA3AF' }}>No classes found.</div>
             )}
             {classes.map(cls => {
-              const count = msgCounts[cls.id] ?? 0
               const isActive = cls.id === selectedClassId
               return (
                 <div
@@ -93,14 +84,7 @@ export default function AdminChatSupervisionPage() {
                   className={`chat-sidebar__item ${isActive ? 'chat-sidebar__item--active' : ''}`}
                   onClick={() => setSelectedClassId(cls.id)}
                 >
-                  <div className="chat-sidebar__name">
-                    {cls.name}
-                    {count > 0 && (
-                      <span className="chat-unread-badge" style={{ background: isActive ? '#fff' : '#4F46E5', color: isActive ? '#4F46E5' : '#fff' }}>
-                        {count}
-                      </span>
-                    )}
-                  </div>
+                  <div className="chat-sidebar__name">{cls.name}</div>
                   <div className="chat-sidebar__preview">{cls.productName}</div>
                 </div>
               )

@@ -52,9 +52,6 @@ export default function EditorLoginPage() {
               </div>
             ))}
           </div>
-          <div className="auth-demo-hint">
-            <span>Demo:</span> ali@editor.com / editor123
-          </div>
         </div>
       </div>
 

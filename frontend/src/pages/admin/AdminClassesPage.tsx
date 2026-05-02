@@ -2,17 +2,11 @@ import { useState, useEffect } from 'react'
 import { Plus, BookOpen, X, Users } from 'lucide-react'
 import {
   adminGetClasses, adminCreateClass, adminGetEnrollmentsForClass,
-  adminEnrollStudent, adminRemoveEnrollment, adminGetTeachers, adminGetProducts,
+  adminEnrollStudent, adminRemoveEnrollment, adminGetTeachers, adminGetProducts, adminGetStudents,
 } from '../../services/lmsApi'
 import type { LmsClass, Teacher, Product, StudentEnrollment, CreateClassPayload } from '../../types/lms'
+import type { StudentSummary } from '../../services/lmsApi'
 import '../../styles/admin/admin-classes.css'
-
-const MOCK_STUDENTS = [
-  { id: 'student-mock-001', name: 'Alice Johnson', email: 'alice@example.com' },
-  { id: 'student-mock-002', name: 'Bob Smith', email: 'bob@example.com' },
-  { id: 'student-mock-003', name: 'Carol Davis', email: 'carol@example.com' },
-  { id: 'student-mock-004', name: 'Dan Wilson', email: 'dan@example.com' },
-]
 
 function demoBadge(demoExpiresAt?: string) {
   if (!demoExpiresAt) return <span className="enrollment-demo-chip enrollment-demo-chip--full">Full Access</span>
@@ -26,6 +20,7 @@ export default function AdminClassesPage() {
   const [classes, setClasses] = useState<LmsClass[]>([])
   const [teachers, setTeachers] = useState<Teacher[]>([])
   const [products, setProducts] = useState<Product[]>([])
+  const [students, setStudents] = useState<StudentSummary[]>([])
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [drawerClassId, setDrawerClassId] = useState<string | null>(null)
   const [enrollments, setEnrollments] = useState<StudentEnrollment[]>([])
@@ -48,10 +43,11 @@ export default function AdminClassesPage() {
   const [enrollSubmitting, setEnrollSubmitting] = useState(false)
 
   useEffect(() => {
-    Promise.all([adminGetClasses(), adminGetTeachers(), adminGetProducts()]).then(([cls, tch, prd]) => {
+    Promise.all([adminGetClasses(), adminGetTeachers(), adminGetProducts(), adminGetStudents()]).then(([cls, tch, prd, stu]) => {
       setClasses(cls)
       setTeachers(tch.filter(t => t.status === 'approved'))
       setProducts(prd)
+      setStudents(stu)
       if (!formProductId && prd[0]) setFormProductId(prd[0].id)
       if (!formTeacherId && tch.filter(t => t.status === 'approved')[0]) setFormTeacherId(tch.filter(t => t.status === 'approved')[0].id)
     })
@@ -96,7 +92,7 @@ export default function AdminClassesPage() {
     setEnrollError('')
     setEnrollSubmitting(true)
     try {
-      const student = MOCK_STUDENTS.find(s => s.id === enrollStudentId)!
+      const student = students.find(s => s.id === enrollStudentId)!
       await adminEnrollStudent({
         classId: drawerClassId,
         studentId: enrollStudentId,
@@ -233,7 +229,7 @@ export default function AdminClassesPage() {
                   <p style={{ fontSize: '0.83rem', color: '#9ca3af' }}>No students enrolled yet.</p>
                 ) : (
                   enrollments.map(e => {
-                    const student = MOCK_STUDENTS.find(s => s.id === e.studentId)
+                    const student = students.find(s => s.id === e.studentId)
                     return (
                       <div key={e.studentId} className="enrollment-item">
                         <div className="enrollment-item__info">
@@ -256,7 +252,7 @@ export default function AdminClassesPage() {
                 <div className="enrollment-add-form">
                   <select value={enrollStudentId} onChange={e => setEnrollStudentId(e.target.value)}>
                     <option value="">Select student…</option>
-                    {MOCK_STUDENTS.filter(s => !enrollments.some(e => e.studentId === s.id)).map(s => (
+                    {students.filter(s => !enrollments.some(e => e.studentId === s.id)).map(s => (
                       <option key={s.id} value={s.id}>{s.name} — {s.email}</option>
                     ))}
                   </select>

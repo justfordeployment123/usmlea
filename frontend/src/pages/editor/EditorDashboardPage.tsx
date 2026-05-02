@@ -2,10 +2,10 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useEditorAuth } from '../../context/EditorAuthContext'
 import {
-  adminGetTeachers,
-  adminGetProducts,
-  adminGetAllSessions,
-  adminApproveTeacher,
+  editorGetTeachers,
+  editorGetProducts,
+  editorGetSessions,
+  editorApproveTeacher,
 } from '../../services/lmsApi'
 import type { Teacher, Product, SessionWithClass } from '../../types/lms'
 import '../../styles/editor.css'
@@ -67,9 +67,9 @@ export default function EditorDashboardPage() {
   useEffect(() => {
     async function load() {
       const [t, p, s] = await Promise.all([
-        adminGetTeachers(),
-        adminGetProducts(),
-        adminGetAllSessions(),
+        editorGetTeachers(),
+        editorGetProducts(),
+        editorGetSessions(),
       ])
       setTeachers(t)
       setProducts(p)
@@ -98,9 +98,9 @@ export default function EditorDashboardPage() {
     setApproving(true)
     try {
       const first = pendingTeachers[0]
-      const updated = await adminApproveTeacher(first.id)
-      setTeachers(prev => prev.map(t => t.id === updated.id ? updated : t))
-      showToast(`${updated.name} approved ✓`)
+      await editorApproveTeacher(first.id)
+      setTeachers(prev => prev.map(t => t.id === first.id ? { ...t, status: 'approved' } : t))
+      showToast(`${first.name} approved ✓`)
     } catch {
       showToast('Failed to approve teacher.')
     } finally {

@@ -27,12 +27,13 @@ The LMS system revolves around **Products → Classes → Sessions**. A product 
 - Manages products (create, edit, toggle active/inactive, delete)
 - Views all sessions across all classes with override ability
 - Controls demo access per student (extend days, grant full access, reset)
+- Supervise group chat per class — soft-delete any message
 
 ### Editor
 - Created by admin only — no self-registration
 - Can approve/reject pending teachers
 - Views and manages all sessions across all classes
-- Accesses supervision panel (chat monitoring — shell in first half, live in second half)
+- Accesses supervision panel — read-only view of all group chats per class
 
 ### Teacher
 - Registers publicly → status starts as `pending`
@@ -64,12 +65,13 @@ Run **Migration 004** in the Supabase SQL Editor. All tables are prefixed `lms_`
 -- ─── Teacher profiles ────────────────────────────────────────────────────────
 -- One row per teacher. References profiles(id) for name/email/auth.
 CREATE TABLE IF NOT EXISTS lms_teacher_profiles (
-  id         UUID PRIMARY KEY REFERENCES profiles(id) ON DELETE CASCADE,
-  phone      TEXT NOT NULL DEFAULT '',
-  bio        TEXT NOT NULL DEFAULT '',
-  status     TEXT NOT NULL DEFAULT 'pending'
+  id                  UUID PRIMARY KEY REFERENCES profiles(id) ON DELETE CASCADE,
+  phone               TEXT NOT NULL DEFAULT '',
+  bio                 TEXT NOT NULL DEFAULT '',
+  profile_picture_url TEXT,       -- Supabase Storage public URL; base64 data URL in mock phase
+  status              TEXT NOT NULL DEFAULT 'pending'
     CONSTRAINT teacher_status_values CHECK (status IN ('pending', 'approved', 'suspended')),
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 -- ─── Editor profiles ─────────────────────────────────────────────────────────
@@ -130,6 +132,7 @@ CREATE TABLE IF NOT EXISTS lms_sessions (
   attendance_count        INTEGER,                   -- populated when session ends
   actual_duration_minutes INTEGER,                   -- computed from started_at/ended_at
   change_note             TEXT,                      -- required if any field edited after creation
+  missed_reason           TEXT,                      -- mandatory when teacher misses or cancels a session
   started_at              TIMESTAMPTZ,               -- set when teacher checks in
   ended_at                TIMESTAMPTZ,               -- set when teacher or admin ends session
   created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -400,11 +403,12 @@ Add three new endpoints — teacher register, teacher login, and editor login.
 **Teacher Register:**
 ```typescript
 const teacherRegisterSchema = z.object({
-  fullName:  z.string().min(2),
-  email:     z.string().email(),
-  password:  z.string().min(8),
-  phone:     z.string().min(5),
-  bio:       z.string().min(10).max(300),
+  name:           z.string().min(2),
+  email:          z.string().email(),
+  password:       z.string().min(8),
+  phone:          z.string().min(5),
+  bio:            z.string().min(10).max(300),
+  profilePicture: z.string().optional(), // base64 data URL in mock; Storage URL in production
 })
 
 authRouter.post('/auth/teacher/register', async (req, res, next) => {
@@ -417,7 +421,7 @@ authRouter.post('/auth/teacher/register', async (req, res, next) => {
       email: normalizedEmail,
       password: parsed.password,
       email_confirm: true,
-      user_metadata: { full_name: parsed.fullName },
+      user_metadata: { full_name: parsed.name },
     })
 
     if (authError || !authData.user) {
@@ -429,7 +433,7 @@ authRouter.post('/auth/teacher/register', async (req, res, next) => {
     // Insert into profiles with role = 'teacher'
     const { error: profileError } = await supabaseServiceClient
       .from('profiles')
-      .insert({ id: userId, email: normalizedEmail, full_name: parsed.fullName, role: 'teacher' })
+      .insert({ id: userId, email: normalizedEmail, full_name: parsed.name, role: 'teacher' })
 
     if (profileError) {
       await supabaseServiceClient.auth.admin.deleteUser(userId)
@@ -439,7 +443,7 @@ authRouter.post('/auth/teacher/register', async (req, res, next) => {
     // Insert into lms_teacher_profiles with status = 'pending'
     const { error: teacherError } = await supabaseServiceClient
       .from('lms_teacher_profiles')
-      .insert({ id: userId, phone: parsed.phone, bio: parsed.bio, status: 'pending' })
+      .insert({ id: userId, phone: parsed.phone, bio: parsed.bio, profile_picture_url: parsed.profilePicture ?? null, status: 'pending' })
 
     if (teacherError) {
       await supabaseServiceClient.auth.admin.deleteUser(userId)
@@ -449,10 +453,11 @@ authRouter.post('/auth/teacher/register', async (req, res, next) => {
     return res.status(201).json({
       teacher: {
         id: userId,
-        name: parsed.fullName,
+        name: parsed.name,
         email: normalizedEmail,
         phone: parsed.phone,
         bio: parsed.bio,
+        profilePicture: parsed.profilePicture ?? null,
         status: 'pending',
         registeredAt: new Date().toISOString(),
         assignedClassIds: [],
@@ -709,7 +714,7 @@ async function fetchTeacherWithClasses(teacherId: string) {
 
   const { data: tp } = await supabaseServiceClient
     .from('lms_teacher_profiles')
-    .select('phone, bio, status, created_at')
+    .select('phone, bio, profile_picture_url, status, created_at')
     .eq('id', teacherId)
     .single()
 
@@ -724,6 +729,7 @@ async function fetchTeacherWithClasses(teacherId: string) {
     email: profile?.email ?? '',
     phone: tp?.phone ?? '',
     bio: tp?.bio ?? '',
+    profilePicture: tp?.profile_picture_url ?? null,
     status: tp?.status ?? 'pending',
     registeredAt: tp?.created_at ?? '',
     assignedClassIds: (classes ?? []).map(c => c.id),
@@ -794,7 +800,7 @@ lmsAdminRouter.patch('/admin/teachers/:id/reinstate', authenticateRequest, requi
 
 // ─── POST /api/v1/admin/editors ──────────────────────────────────────────────
 const createEditorSchema = z.object({
-  fullName: z.string().min(2),
+  name:     z.string().min(2),
   email:    z.string().email(),
   password: z.string().min(8),
 })
@@ -810,7 +816,7 @@ lmsAdminRouter.post('/admin/editors', authenticateRequest, requireRole('admin'),
         email: normalizedEmail,
         password: parsed.password,
         email_confirm: true,
-        user_metadata: { full_name: parsed.fullName },
+        user_metadata: { full_name: parsed.name },
       })
 
       if (authError || !authData.user) {
@@ -821,7 +827,7 @@ lmsAdminRouter.post('/admin/editors', authenticateRequest, requireRole('admin'),
 
       const { error: profileError } = await supabaseServiceClient
         .from('profiles')
-        .insert({ id: userId, email: normalizedEmail, full_name: parsed.fullName, role: 'editor' })
+        .insert({ id: userId, email: normalizedEmail, full_name: parsed.name, role: 'editor' })
 
       if (profileError) {
         await supabaseServiceClient.auth.admin.deleteUser(userId)
@@ -840,7 +846,7 @@ lmsAdminRouter.post('/admin/editors', authenticateRequest, requireRole('admin'),
       return res.status(201).json({
         editor: {
           id: userId,
-          name: parsed.fullName,
+          name: parsed.name,
           email: normalizedEmail,
           createdAt: new Date().toISOString(),
           createdByAdminId: adminId,
@@ -1041,11 +1047,13 @@ lmsAdminRouter.get('/admin/sessions', authenticateRequest, requireRole('admin'),
         scheduledAt: s.scheduled_at,
         durationMinutes: s.duration_minutes,
         status: s.status,
-        sdkMeetingNumber: s.status === 'live' ? s.zoom_meeting_id : null,  // only expose when live
+        meetingLink: s.zoom_meeting_id,  // numeric Zoom meeting ID used by frontend SDK embed
         attendanceCount: s.attendance_count,
         actualDurationMinutes: s.actual_duration_minutes,
         changeNote: s.change_note,
+        missedReason: s.missed_reason,
         recordingUrl: s.recording_url,
+        createdAt: s.created_at,
       }))
 
       return res.status(200).json({ sessions: result })
@@ -1057,6 +1065,7 @@ lmsAdminRouter.get('/admin/sessions', authenticateRequest, requireRole('admin'),
 const updateSessionSchema = z.object({
   scheduledAt:     z.string().datetime().optional(),
   durationMinutes: z.number().int().min(15).optional(),
+  meetingLink:     z.string().optional(),  // Zoom meeting ID; only override if re-creating the meeting
   changeNote:      z.string().min(1),
 })
 
@@ -1067,14 +1076,32 @@ lmsAdminRouter.patch('/admin/sessions/:id', authenticateRequest, requireRole('ad
       const updates: Record<string, unknown> = { change_note: parsed.changeNote, updated_at: new Date().toISOString() }
       if (parsed.scheduledAt)     updates.scheduled_at = parsed.scheduledAt
       if (parsed.durationMinutes) updates.duration_minutes = parsed.durationMinutes
+      if (parsed.meetingLink)     updates.zoom_meeting_id = parsed.meetingLink
 
-      const { error } = await supabaseServiceClient
+      const { data: updated, error } = await supabaseServiceClient
         .from('lms_sessions')
         .update(updates)
         .eq('id', req.params.id)
+        .select()
+        .single()
 
       if (error) throw new HttpError(500, 'UPDATE_FAILED', error.message)
-      return res.status(200).json({ message: 'Session updated.' })
+      return res.status(200).json({
+        session: {
+          id: updated.id,
+          classId: updated.class_id,
+          scheduledAt: updated.scheduled_at,
+          durationMinutes: updated.duration_minutes,
+          status: updated.status,
+          meetingLink: updated.zoom_meeting_id,
+          attendanceCount: updated.attendance_count,
+          actualDurationMinutes: updated.actual_duration_minutes,
+          changeNote: updated.change_note,
+          missedReason: updated.missed_reason,
+          recordingUrl: updated.recording_url,
+          createdAt: updated.created_at,
+        },
+      })
     } catch (err) { return next(err) }
   }
 )
@@ -1223,7 +1250,7 @@ lmsTeacherRouter.get('/teacher/classes', authenticateRequest, requireRole('teach
       // Get next session per class
       const { data: sessions } = await supabaseServiceClient
         .from('lms_sessions')
-        .select('id, class_id, scheduled_at, duration_minutes, status, zoom_meeting_id, recording_url, recording_status')
+        .select('id, class_id, scheduled_at, duration_minutes, status, zoom_meeting_id, recording_url, missed_reason, created_at')
         .in('class_id', classIds)
         .in('status', ['scheduled', 'live'])
         .order('scheduled_at', { ascending: true })
@@ -1232,6 +1259,18 @@ lmsTeacherRouter.get('/teacher/classes', authenticateRequest, requireRole('teach
       ;(sessions ?? []).forEach(s => {
         if (!nextSessionByClass[s.class_id]) nextSessionByClass[s.class_id] = s
       })
+
+      const mapNextSession = (s: typeof sessions[0] | null) => s ? {
+        id: s.id,
+        classId: s.class_id,
+        scheduledAt: s.scheduled_at,
+        durationMinutes: s.duration_minutes,
+        status: s.status,
+        meetingLink: s.zoom_meeting_id,
+        recordingUrl: s.recording_url,
+        missedReason: s.missed_reason,
+        createdAt: s.created_at,
+      } : null
 
       const result = (classes ?? []).map(c => ({
         id: c.id,
@@ -1242,7 +1281,7 @@ lmsTeacherRouter.get('/teacher/classes', authenticateRequest, requireRole('teach
         teacherId,
         defaultDurationMinutes: c.default_duration_minutes,
         enrolledStudentCount: enrollCountByClass[c.id] ?? 0,
-        nextSession: nextSessionByClass[c.id] ?? null,
+        nextSession: mapNextSession(nextSessionByClass[c.id] ?? null),
         createdAt: c.created_at,
       }))
 
@@ -1269,12 +1308,28 @@ lmsTeacherRouter.get('/teacher/classes/:classId/sessions', authenticateRequest, 
 
       const { data, error } = await supabaseServiceClient
         .from('lms_sessions')
-        .select('*')
+        .select('id, class_id, scheduled_at, duration_minutes, status, zoom_meeting_id, recording_url, attendance_count, actual_duration_minutes, change_note, missed_reason, created_at')
         .eq('class_id', req.params.classId)
         .order('scheduled_at', { ascending: false })
 
       if (error) throw new HttpError(500, 'FETCH_FAILED', error.message)
-      return res.status(200).json({ sessions: data ?? [] })
+
+      const sessions = (data ?? []).map(s => ({
+        id: s.id,
+        classId: s.class_id,
+        scheduledAt: s.scheduled_at,
+        durationMinutes: s.duration_minutes,
+        status: s.status,
+        meetingLink: s.zoom_meeting_id,
+        recordingUrl: s.recording_url,
+        attendanceCount: s.attendance_count,
+        actualDurationMinutes: s.actual_duration_minutes,
+        changeNote: s.change_note,
+        missedReason: s.missed_reason,
+        createdAt: s.created_at,
+      }))
+
+      return res.status(200).json({ sessions })
     } catch (err) { return next(err) }
   }
 )
@@ -1319,8 +1374,23 @@ lmsTeacherRouter.post('/teacher/sessions', authenticateRequest, requireRole('tea
         .select()
         .single()
 
-      if (error) throw new HttpError(500, 'CREATE_FAILED', error.message)
-      return res.status(201).json({ session: data })
+      if (error || !data) throw new HttpError(500, 'CREATE_FAILED', error?.message ?? 'No data returned')
+      return res.status(201).json({
+        session: {
+          id: data.id,
+          classId: data.class_id,
+          scheduledAt: data.scheduled_at,
+          durationMinutes: data.duration_minutes,
+          status: data.status,
+          meetingLink: data.zoom_meeting_id,
+          attendanceCount: null,
+          actualDurationMinutes: null,
+          changeNote: null,
+          missedReason: null,
+          recordingUrl: null,
+          createdAt: data.created_at,
+        },
+      })
     } catch (err) { return next(err) }
   }
 )
@@ -1331,6 +1401,7 @@ const updateSessionSchema = z.object({
   durationMinutes: z.number().int().min(15).max(300).optional(),
   notes:           z.string().optional(),
   changeNote:      z.string().min(1),  // required on every edit
+  // meetingLink not editable by teacher — meeting is auto-generated at create time
 })
 
 lmsTeacherRouter.patch('/teacher/sessions/:id', authenticateRequest, requireRole('teacher'),
@@ -1364,13 +1435,30 @@ lmsTeacherRouter.patch('/teacher/sessions/:id', authenticateRequest, requireRole
       if (parsed.scheduledAt)     updates.scheduled_at = parsed.scheduledAt
       if (parsed.durationMinutes) updates.duration_minutes = parsed.durationMinutes
 
-      const { error } = await supabaseServiceClient
+      const { data: updated, error } = await supabaseServiceClient
         .from('lms_sessions')
         .update(updates)
         .eq('id', req.params.id)
+        .select()
+        .single()
 
       if (error) throw new HttpError(500, 'UPDATE_FAILED', error.message)
-      return res.status(200).json({ message: 'Session updated.' })
+      return res.status(200).json({
+        session: {
+          id: updated.id,
+          classId: updated.class_id,
+          scheduledAt: updated.scheduled_at,
+          durationMinutes: updated.duration_minutes,
+          status: updated.status,
+          meetingLink: updated.zoom_meeting_id,
+          attendanceCount: updated.attendance_count,
+          actualDurationMinutes: updated.actual_duration_minutes,
+          changeNote: updated.change_note,
+          missedReason: updated.missed_reason,
+          recordingUrl: updated.recording_url,
+          createdAt: updated.created_at,
+        },
+      })
     } catch (err) { return next(err) }
   }
 )
@@ -1465,6 +1553,10 @@ lmsTeacherRouter.patch('/teacher/sessions/:id/cancel', authenticateRequest, requ
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const teacherId = req.auth!.userId
+      const { reason } = req.body
+      if (!reason || reason.trim().length < 10) {
+        throw new HttpError(400, 'REASON_REQUIRED', 'reason is required (min 10 chars).')
+      }
 
       const { data: session } = await supabaseServiceClient
         .from('lms_sessions')
@@ -1486,7 +1578,7 @@ lmsTeacherRouter.patch('/teacher/sessions/:id/cancel', authenticateRequest, requ
 
       const { error } = await supabaseServiceClient
         .from('lms_sessions')
-        .update({ status: 'cancelled', updated_at: new Date().toISOString() })
+        .update({ status: 'cancelled', missed_reason: reason, updated_at: new Date().toISOString() })
         .eq('id', req.params.id)
 
       if (error) throw new HttpError(500, 'CANCEL_FAILED', error.message)
@@ -1512,12 +1604,24 @@ lmsTeacherRouter.get('/teacher/classes/:classId/notices', authenticateRequest, r
 
       const { data, error } = await supabaseServiceClient
         .from('lms_notices')
-        .select('*')
+        .select('id, class_id, teacher_id, title, content, type, file_name, created_at')
         .eq('class_id', req.params.classId)
         .order('created_at', { ascending: false })
 
       if (error) throw new HttpError(500, 'FETCH_FAILED', error.message)
-      return res.status(200).json({ notices: data ?? [] })
+
+      const notices = (data ?? []).map(n => ({
+        id: n.id,
+        classId: n.class_id,
+        teacherId: n.teacher_id,
+        title: n.title,
+        content: n.content,
+        type: n.type,
+        fileName: n.file_name,
+        createdAt: n.created_at,
+      }))
+
+      return res.status(200).json({ notices })
     } catch (err) { return next(err) }
   }
 )
@@ -1626,8 +1730,20 @@ lmsEditorRouter.get('/editor/teachers', authenticateRequest, requireRole('editor
     try {
       const { data: teachers } = await supabaseServiceClient
         .from('lms_teacher_profiles')
-        .select('id, status, phone, bio, created_at, profiles!inner(full_name, email)')
+        .select('id, status, phone, bio, profile_picture_url, created_at, profiles!inner(full_name, email)')
         .order('created_at', { ascending: false })
+
+      // Fetch assigned class IDs per teacher
+      const teacherIds = (teachers ?? []).map(t => t.id)
+      const { data: classes } = await supabaseServiceClient
+        .from('lms_classes')
+        .select('id, teacher_id')
+        .in('teacher_id', teacherIds)
+      const classMap: Record<string, string[]> = {}
+      ;(classes ?? []).forEach(c => {
+        if (!classMap[c.teacher_id]) classMap[c.teacher_id] = []
+        classMap[c.teacher_id].push(c.id)
+      })
 
       const result = (teachers ?? []).map(t => ({
         id: t.id,
@@ -1635,8 +1751,10 @@ lmsEditorRouter.get('/editor/teachers', authenticateRequest, requireRole('editor
         email: (t.profiles as any).email,
         phone: t.phone,
         bio: t.bio,
+        profilePicture: t.profile_picture_url ?? null,
         status: t.status,
         registeredAt: t.created_at,
+        assignedClassIds: classMap[t.id] ?? [],
       }))
 
       return res.status(200).json({ teachers: result })
@@ -1712,8 +1830,13 @@ lmsEditorRouter.get('/editor/sessions', authenticateRequest, requireRole('editor
         scheduledAt: s.scheduled_at,
         durationMinutes: s.duration_minutes,
         status: s.status,
+        meetingLink: s.zoom_meeting_id,
         attendanceCount: s.attendance_count,
+        actualDurationMinutes: s.actual_duration_minutes,
         changeNote: s.change_note,
+        missedReason: s.missed_reason,
+        recordingUrl: s.recording_url,
+        createdAt: s.created_at,
       }))
 
       return res.status(200).json({ sessions: result })
@@ -1725,6 +1848,7 @@ lmsEditorRouter.get('/editor/sessions', authenticateRequest, requireRole('editor
 const updateSessionSchema = z.object({
   scheduledAt:     z.string().datetime().optional(),
   durationMinutes: z.number().int().min(15).optional(),
+  meetingLink:     z.string().optional(),
   changeNote:      z.string().min(1),
 })
 
@@ -1735,14 +1859,32 @@ lmsEditorRouter.patch('/editor/sessions/:id', authenticateRequest, requireRole('
       const updates: Record<string, unknown> = { change_note: parsed.changeNote, updated_at: new Date().toISOString() }
       if (parsed.scheduledAt)     updates.scheduled_at = parsed.scheduledAt
       if (parsed.durationMinutes) updates.duration_minutes = parsed.durationMinutes
+      if (parsed.meetingLink)     updates.zoom_meeting_id = parsed.meetingLink
 
-      const { error } = await supabaseServiceClient
+      const { data: updated, error } = await supabaseServiceClient
         .from('lms_sessions')
         .update(updates)
         .eq('id', req.params.id)
+        .select()
+        .single()
 
       if (error) throw new HttpError(500, 'UPDATE_FAILED', error.message)
-      return res.status(200).json({ message: 'Session updated.' })
+      return res.status(200).json({
+        session: {
+          id: updated.id,
+          classId: updated.class_id,
+          scheduledAt: updated.scheduled_at,
+          durationMinutes: updated.duration_minutes,
+          status: updated.status,
+          meetingLink: updated.zoom_meeting_id,
+          attendanceCount: updated.attendance_count,
+          actualDurationMinutes: updated.actual_duration_minutes,
+          changeNote: updated.change_note,
+          missedReason: updated.missed_reason,
+          recordingUrl: updated.recording_url,
+          createdAt: updated.created_at,
+        },
+      })
     } catch (err) { return next(err) }
   }
 )
@@ -1805,7 +1947,7 @@ lmsStudentRouter.get('/student/classes', authenticateRequest, requireRole('stude
       // Get next session per class
       const { data: sessions } = await supabaseServiceClient
         .from('lms_sessions')
-        .select('id, class_id, scheduled_at, duration_minutes, status, zoom_meeting_id, recording_url, recording_status')
+        .select('id, class_id, scheduled_at, duration_minutes, status, zoom_meeting_id, recording_url, missed_reason, created_at')
         .in('class_id', classIds)
         .in('status', ['scheduled', 'live'])
         .order('scheduled_at', { ascending: true })
@@ -1815,28 +1957,50 @@ lmsStudentRouter.get('/student/classes', authenticateRequest, requireRole('stude
         if (!nextSessionByClass[s.class_id]) nextSessionByClass[s.class_id] = s
       })
 
-      // Get teacher names
+      // Get teacher names + photos
       const teacherIds = [...new Set((enrollments ?? []).map(e => (e.lms_classes as any).lms_teacher_profiles?.id).filter(Boolean))]
       const { data: profiles } = await supabaseServiceClient
         .from('profiles')
         .select('id, full_name')
         .in('id', teacherIds)
+      const { data: teacherProfiles } = await supabaseServiceClient
+        .from('lms_teacher_profiles')
+        .select('id, profile_picture_url')
+        .in('id', teacherIds)
 
       const nameMap: Record<string, string> = {}
+      const photoMap: Record<string, string | null> = {}
       ;(profiles ?? []).forEach(p => { nameMap[p.id] = p.full_name })
+      ;(teacherProfiles ?? []).forEach(t => { photoMap[t.id] = t.profile_picture_url })
+
+      const mapSession = (s: typeof sessions[0] | null) => s ? {
+        id: s.id,
+        classId: s.class_id,
+        scheduledAt: s.scheduled_at,
+        durationMinutes: s.duration_minutes,
+        status: s.status,
+        meetingLink: s.zoom_meeting_id,
+        recordingUrl: s.recording_url,
+        missedReason: s.missed_reason,
+        createdAt: s.created_at,
+      } : null
 
       const result = (enrollments ?? []).map(e => {
         const cls = e.lms_classes as any
-        const teacherName = nameMap[cls.lms_teacher_profiles?.id] ?? ''
+        const teacherId = cls.lms_teacher_profiles?.id
+        const teacherName = nameMap[teacherId] ?? ''
+        const teacherPhoto = photoMap[teacherId] ?? null
         return {
           id: cls.id,
           name: cls.name,
           description: cls.description,
           productId: cls.lms_products?.id,
           productName: cls.lms_products?.name ?? '',
+          teacherId,
           teacherName,
+          teacherPhoto,
           defaultDurationMinutes: cls.default_duration_minutes,
-          nextSession: nextSessionByClass[e.class_id] ?? null,
+          nextSession: mapSession(nextSessionByClass[e.class_id] ?? null),
           enrolledAt: e.enrolled_at,
           demoExpiresAt: e.demo_expires_at,
         }
@@ -1867,7 +2031,7 @@ lmsStudentRouter.get('/student/classes/:classId', authenticateRequest, requireRo
         .from('lms_classes')
         .select(`
           id, name, description, default_duration_minutes,
-          lms_products!inner(name),
+          lms_products!inner(id, name),
           lms_teacher_profiles!inner(id)
         `)
         .eq('id', req.params.classId)
@@ -1875,19 +2039,22 @@ lmsStudentRouter.get('/student/classes/:classId', authenticateRequest, requireRo
 
       if (error || !cls) throw new HttpError(404, 'NOT_FOUND', 'Class not found.')
 
-      const { data: profile } = await supabaseServiceClient
-        .from('profiles')
-        .select('full_name')
-        .eq('id', (cls.lms_teacher_profiles as any).id)
-        .single()
+      const teacherId = (cls.lms_teacher_profiles as any).id
+      const [{ data: profile }, { data: tp }] = await Promise.all([
+        supabaseServiceClient.from('profiles').select('full_name').eq('id', teacherId).single(),
+        supabaseServiceClient.from('lms_teacher_profiles').select('profile_picture_url').eq('id', teacherId).single(),
+      ])
 
       return res.status(200).json({
         class: {
           id: cls.id,
+          productId: (cls.lms_products as any).id,
           name: cls.name,
           description: cls.description,
           productName: (cls.lms_products as any).name,
+          teacherId,
           teacherName: profile?.full_name ?? '',
+          teacherPhoto: tp?.profile_picture_url ?? null,
           defaultDurationMinutes: cls.default_duration_minutes,
         },
       })
@@ -1912,17 +2079,26 @@ lmsStudentRouter.get('/student/classes/:classId/sessions', authenticateRequest, 
 
       const { data, error } = await supabaseServiceClient
         .from('lms_sessions')
-        .select('id, class_id, scheduled_at, duration_minutes, status, zoom_meeting_id, recording_url, recording_status')
+        .select('id, class_id, scheduled_at, duration_minutes, status, zoom_meeting_id, recording_url, attendance_count, actual_duration_minutes, change_note, missed_reason, created_at')
         .eq('class_id', req.params.classId)
         .neq('status', 'cancelled')
         .order('scheduled_at', { ascending: false })
 
       if (error) throw new HttpError(500, 'FETCH_FAILED', error.message)
 
-      // Privacy: only expose meeting number when live — students use it to fetch SDK token
       const sessions = (data ?? []).map(s => ({
-        ...s,
-        sdkMeetingNumber: s.status === 'live' ? s.zoom_meeting_id : null,
+        id: s.id,
+        classId: s.class_id,
+        scheduledAt: s.scheduled_at,
+        durationMinutes: s.duration_minutes,
+        status: s.status,
+        meetingLink: s.zoom_meeting_id,  // Zoom meeting ID; frontend uses for SDK embed when live
+        recordingUrl: s.recording_url,
+        attendanceCount: s.attendance_count,
+        actualDurationMinutes: s.actual_duration_minutes,
+        changeNote: s.change_note,
+        missedReason: s.missed_reason,
+        createdAt: s.created_at,
       }))
 
       return res.status(200).json({ sessions })
@@ -1947,12 +2123,24 @@ lmsStudentRouter.get('/student/classes/:classId/notices', authenticateRequest, r
 
       const { data, error } = await supabaseServiceClient
         .from('lms_notices')
-        .select('id, class_id, title, content, type, file_name, created_at')
+        .select('id, class_id, teacher_id, title, content, type, file_name, created_at')
         .eq('class_id', req.params.classId)
         .order('created_at', { ascending: false })
 
       if (error) throw new HttpError(500, 'FETCH_FAILED', error.message)
-      return res.status(200).json({ notices: data ?? [] })
+
+      const notices = (data ?? []).map(n => ({
+        id: n.id,
+        classId: n.class_id,
+        teacherId: n.teacher_id,
+        title: n.title,
+        content: n.content,
+        type: n.type,
+        fileName: n.file_name,
+        createdAt: n.created_at,
+      }))
+
+      return res.status(200).json({ notices })
     } catch (err) { return next(err) }
   }
 )
@@ -2013,7 +2201,7 @@ No auth required.
 ```json
 // Request
 {
-  "fullName": "Dr. James Carter",
+  "name": "Dr. James Carter",
   "email": "james@teacher.com",
   "password": "teacher123",
   "phone": "+1 555 0100",
@@ -2098,6 +2286,7 @@ Requires `Authorization: Bearer <admin_token>`
       "email": "james@teacher.com",
       "phone": "+1 555 0100",
       "bio": "...",
+      "profilePicture": "https://...",
       "status": "approved",
       "registeredAt": "2026-04-24T12:00:00Z",
       "assignedClassIds": ["class-uuid"]
@@ -2119,7 +2308,7 @@ Requires admin token. No request body.
 Requires admin token.
 ```json
 // Request
-{ "fullName": "Ali Hassan", "email": "ali@editor.com", "password": "editor123" }
+{ "name": "Ali Hassan", "email": "ali@editor.com", "password": "editor123" }
 
 // Response 201
 { "editor": { "id": "uuid", "name": "Ali Hassan", "email": "ali@editor.com", "createdAt": "...", "createdByAdminId": "uuid" } }
@@ -2185,11 +2374,13 @@ Partial update. Any subset of the create fields. Response 200.
       "scheduledAt": "2026-04-25T10:00:00Z",
       "durationMinutes": 90,
       "status": "scheduled",
-      "sdkMeetingNumber": "1234567890",  // null when not live; use GET /sessions/:id/sdk-token to join
+      "meetingLink": "1234567890",
       "attendanceCount": null,
       "actualDurationMinutes": null,
       "changeNote": null,
-      "recordingUrl": null
+      "missedReason": null,
+      "recordingUrl": null,
+      "createdAt": "2026-04-20T09:00:00Z"
     }
   ]
 }
@@ -2197,9 +2388,9 @@ Partial update. Any subset of the create fields. Response 200.
 
 #### `PATCH /api/v1/admin/sessions/:id`
 ```json
-// Request (changeNote is always required)
+// Request (changeNote is always required; meetingLink only needed if re-creating the Zoom meeting)
 { "scheduledAt": "2026-04-26T10:00:00Z", "durationMinutes": 120, "changeNote": "Rescheduled due to teacher conflict." }
-// Response 200: { "message": "Session updated." }
+// Response 200: { "session": { ...full LmsSession shape... } }
 ```
 
 #### `PATCH /api/v1/admin/sessions/:id/cancel`
@@ -2281,14 +2472,17 @@ Requires teacher token.
   "sessions": [
     {
       "id": "uuid",
-      "class_id": "uuid",
-      "scheduled_at": "2026-04-25T10:00:00Z",
-      "duration_minutes": 90,
+      "classId": "uuid",
+      "scheduledAt": "2026-04-25T10:00:00Z",
+      "durationMinutes": 90,
       "status": "scheduled",
-      "zoom_meeting_id": "1234567890",  // only used server-side for SDK token generation
-      "attendance_count": null,
-      "actual_duration_minutes": null,
-      "change_note": null
+      "meetingLink": "1234567890",
+      "attendanceCount": null,
+      "actualDurationMinutes": null,
+      "changeNote": null,
+      "missedReason": null,
+      "recordingUrl": null,
+      "createdAt": "2026-04-20T09:00:00Z"
     }
   ]
 }
@@ -2298,15 +2492,15 @@ Requires teacher token.
 ```json
 // Request
 { "classId": "uuid", "scheduledAt": "2026-04-25T10:00:00Z", "durationMinutes": 90 }
-// Response 201: { "session": { ...full session row... } }
+// Response 201: { "session": { ...full camelCase LmsSession shape... } }
 // Error 403: class doesn't belong to this teacher
 ```
 
 #### `PATCH /api/v1/teacher/sessions/:id`
 ```json
-// changeNote always required
+// changeNote always required; meetingLink is not editable by teacher
 { "scheduledAt": "2026-04-26T10:00:00Z", "changeNote": "Moving to tomorrow due to public holiday." }
-// Response 200: { "message": "Session updated." }
+// Response 200: { "session": { ...full camelCase LmsSession shape... } }
 ```
 
 #### `POST /api/v1/teacher/sessions/:id/start`
@@ -2323,15 +2517,36 @@ No body. Flips status → `completed`, computes `actual_duration_minutes`.
 ```
 
 #### `PATCH /api/v1/teacher/sessions/:id/cancel`
-No body.
+**Request body:** `{ "reason": "This session is cancelled due to a public holiday." }` — `reason` is required (min 10 chars). Stored as `missed_reason` on the session.
 ```json
 // Response 200: { "message": "Session cancelled." }
+// Error 400: { "code": "REASON_REQUIRED", "message": "reason is required (min 10 chars)." }
 // Error 400: { "code": "INVALID_STATUS", "message": "Only scheduled sessions can be cancelled." }
+```
+
+#### `PATCH /api/v1/teacher/classes/:classId/sessions/:sessionId/missed`
+**Request body:** `{ "reason": "Due to a personal emergency, I was unable to conduct today's session." }` — `reason` is required (min 10 chars).
+
+**Purpose:** Teacher marks a past scheduled session as missed and provides a mandatory reason. Reason is visible to all enrolled students and admin.
+
+**Validation:**
+- `reason` is required (min 10 chars)
+- Session must be `scheduled` and `scheduled_at < NOW()`
+- Session must belong to teacher's class
+
+**Logic:**
+1. Update `lms_sessions`: `status = 'cancelled'`, `missed_reason = reason`
+2. Insert `lms_notifications` for all enrolled students: type `'session_rescheduled'`, title `'Session cancelled'`, body = reason
+
+```json
+// Response 200: { "message": "Session marked as missed." }
+// Error 400: { "code": "REASON_REQUIRED", "message": "reason is required (min 10 chars)." }
+// Error 400: { "code": "INVALID_STATUS", "message": "Session must be scheduled and in the past." }
 ```
 
 #### `GET /api/v1/teacher/classes/:classId/notices`
 ```json
-// Response 200: { "notices": [ { "id", "class_id", "title", "content", "type", "file_name", "created_at" } ] }
+// Response 200: { "notices": [ { "id", "classId", "teacherId", "title", "content", "type", "fileName", "createdAt" } ] }
 ```
 
 #### `POST /api/v1/teacher/notices`
@@ -2374,11 +2589,25 @@ Requires student token.
   "classes": [
     {
       "id": "uuid",
+      "productId": "uuid",
       "name": "Step 1 Intensive",
+      "description": "...",
       "productName": "USMLE Online Sessions",
+      "teacherId": "uuid",
       "teacherName": "Dr. James Carter",
+      "teacherPhoto": "https://...",
       "defaultDurationMinutes": 90,
-      "nextSession": { "id": "uuid", "scheduledAt": "...", "status": "live", "sdkMeetingNumber": "1234567890" },
+      "nextSession": {
+        "id": "uuid",
+        "classId": "uuid",
+        "scheduledAt": "2026-04-25T10:00:00Z",
+        "durationMinutes": 90,
+        "status": "live",
+        "meetingLink": "1234567890",
+        "recordingUrl": null,
+        "missedReason": null,
+        "createdAt": "2026-04-20T09:00:00Z"
+      },
       "enrolledAt": "2026-04-01T00:00:00Z",
       "demoExpiresAt": null
     }
@@ -2387,13 +2616,13 @@ Requires student token.
 ```
 
 #### `GET /api/v1/student/classes/:classId`
-Returns single class detail. 403 if not enrolled.
+Returns single class detail including `productId`, `teacherId`, `teacherPhoto`. 403 if not enrolled.
 
 #### `GET /api/v1/student/classes/:classId/sessions`
-`sdkMeetingNumber` is `null` unless `status === 'live'` — only revealed when live. Frontend calls `GET /sessions/:id/sdk-token` to get the signed SDK token needed to join the embedded meeting.
+Returns all non-cancelled sessions as camelCase `LmsSession` objects. `meetingLink` contains the Zoom meeting ID (used by frontend SDK embed when `status === 'live'`).
 
 #### `GET /api/v1/student/classes/:classId/notices`
-403 if not enrolled.
+Returns camelCase `Notice` objects: `{ id, classId, teacherId, title, content, type, fileName, createdAt }`. 403 if not enrolled.
 
 ---
 
@@ -2538,7 +2767,7 @@ router.post('/api/v1/webhooks/zoom', async (req, res) => {
 
 ### 8.5 Student Recording Access
 
-Students see recordings via the existing `GET /api/v1/student/classes/:classId/sessions` endpoint — it already returns `recordingUrl`. The frontend filters for `status = 'completed'` AND `recordingUrl != null`. No new endpoint needed.
+Students see recordings via `GET /api/v1/student/classes/:classId/recordings` — a dedicated endpoint that returns only completed sessions with a recording URL, shaped as `RecordedSession[]` with `accessLevel` derived from enrollment type.
 
 The recording is a direct MP4 URL in Supabase Storage — the frontend renders it with an HTML5 `<video>` player inside the app. No new tab, no external link.
 
@@ -2771,7 +3000,7 @@ Step 18  Wire up real Zoom API — replace placeholder in zoom.ts + register rec
 ### Student
 - [ ] `GET /student/classes` returns only enrolled classes
 - [ ] Student accessing a class they are not enrolled in → 403
-- [ ] Sessions list: `sdkMeetingNumber` is `null` for `scheduled` sessions, populated for `live` sessions
+- [ ] Sessions list: `meetingLink` (Zoom meeting ID) is returned for all sessions; frontend uses it in SDK embed when `status === 'live'`
 - [ ] `GET /api/v1/sessions/:sessionId/sdk-token` returns SDK signature for embedded meeting
 - [ ] `POST /api/v1/webhooks/zoom` handles `recording.completed` → auto-uploads MP4 to Supabase Storage
 - [ ] Demo access: student with expired `demo_expires_at` should be gated (second half — access control enforcement)
@@ -2813,7 +3042,7 @@ The second half adds the payment/enrollment pipeline, chat, attendance, notifica
 | Frontend mock | Real backend work |
 |---|---|
 | `submitCheckout()` — fake 1.5s delay | Stripe PaymentIntent + enrollment creation |
-| `getChatMessagesForClass()` — localStorage | `lms_chat_messages` table |
+| `getGroupChatMessages(classId)` — localStorage | `lms_chat_messages` table (group chat per class) |
 | `getAttendanceForClass()` — deterministic random | `lms_attendance_records` table |
 | `getStudentLmsNotifications()` — hardcoded seed | `lms_notifications` table |
 | `getStudentNotificationPrefs()` — per-key localStorage | `lms_notification_prefs` table |
@@ -2827,7 +3056,7 @@ The second half adds the payment/enrollment pipeline, chat, attendance, notifica
 
 **Student:**
 - Browse programs → view product detail → checkout (pay) → auto-enrolled → access My Classes
-- Chat with teacher per class
+- Group chat with teacher and classmates per class (all messages visible to all enrolled students)
 - See attendance per class (per-session breakdown)
 - Watch recorded sessions (recording URL from completed session)
 - Receive in-app LMS notifications
@@ -2836,7 +3065,7 @@ The second half adds the payment/enrollment pipeline, chat, attendance, notifica
 - Edit profile (name, phone)
 
 **Teacher:**
-- Respond to student chat messages per class
+- Post to and read the group chat per class
 - View recording status per session (auto-populated by Zoom webhook — no upload needed)
 - View analytics (sessions, attendance rates, duration)
 - See attendance per session (how many students attended)
@@ -2846,9 +3075,8 @@ The second half adds the payment/enrollment pipeline, chat, attendance, notifica
 - Enroll students in classes with full or demo access
 - Remove enrollments
 - Manage coupon codes (create, toggle, delete)
-- Supervise all chat threads across all classes
+- Supervise group chat per class — soft-delete any message
 - Soft-delete individual messages
-- Flag conversations for review
 
 ---
 
@@ -2863,21 +3091,20 @@ Run **Migration 005** in the Supabase SQL Editor after Migration 004.
 -- ═══════════════════════════════════════════════════════════════════════════
 
 -- ─── Chat Messages ───────────────────────────────────────────────────────────
--- One row per message. Each thread is scoped to (class_id, student_id).
--- Teacher replies to a student share the same (class_id, student_id) pair
--- but have sender_role = 'teacher'.
+-- One row per message. All messages in a class share a single group thread.
+-- sender_id references profiles(id) — can be a student or teacher.
+-- sender_name is denormalized to avoid joins on every message fetch.
 -- is_deleted = true = soft-deleted (still visible to admin, hidden to others).
 CREATE TABLE IF NOT EXISTS lms_chat_messages (
-  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  class_id    UUID NOT NULL REFERENCES lms_classes(id) ON DELETE CASCADE,
-  student_id  UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
-  sender_role TEXT NOT NULL
+  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  class_id     UUID NOT NULL REFERENCES lms_classes(id) ON DELETE CASCADE,
+  sender_id    UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  sender_name  TEXT NOT NULL,
+  sender_role  TEXT NOT NULL
     CONSTRAINT sender_role_values CHECK (sender_role IN ('student', 'teacher')),
-  text        TEXT NOT NULL,
-  is_read     BOOLEAN NOT NULL DEFAULT false,
-  is_deleted  BOOLEAN NOT NULL DEFAULT false,
-  flagged     BOOLEAN NOT NULL DEFAULT false,
-  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  text         TEXT NOT NULL,
+  is_deleted   BOOLEAN NOT NULL DEFAULT false,
+  sent_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()   -- named sent_at (not created_at) to match frontend ChatMessage.sentAt
 );
 
 -- ─── Attendance Records ──────────────────────────────────────────────────────
@@ -2938,15 +3165,16 @@ CREATE TABLE IF NOT EXISTS lms_orders (
 
 -- ─── Notification Preferences ────────────────────────────────────────────────
 -- One row per student. Upserted on first save.
+-- Column names match the frontend NotificationPrefs interface exactly.
 CREATE TABLE IF NOT EXISTS lms_notification_prefs (
-  student_id               UUID PRIMARY KEY REFERENCES profiles(id) ON DELETE CASCADE,
-  email_session_reminders  BOOLEAN NOT NULL DEFAULT true,
-  email_new_notices        BOOLEAN NOT NULL DEFAULT true,
-  email_chat_replies       BOOLEAN NOT NULL DEFAULT true,
-  push_session_reminders   BOOLEAN NOT NULL DEFAULT false,
-  push_new_notices         BOOLEAN NOT NULL DEFAULT false,
-  whatsapp_opt_in          BOOLEAN NOT NULL DEFAULT false,
-  updated_at               TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  student_id          UUID PRIMARY KEY REFERENCES profiles(id) ON DELETE CASCADE,
+  email_enabled       BOOLEAN NOT NULL DEFAULT true,
+  push_enabled        BOOLEAN NOT NULL DEFAULT false,
+  session_reminder    BOOLEAN NOT NULL DEFAULT true,
+  session_started     BOOLEAN NOT NULL DEFAULT true,
+  session_rescheduled BOOLEAN NOT NULL DEFAULT true,
+  notice_posted       BOOLEAN NOT NULL DEFAULT true,
+  updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 -- ─── LMS Notifications (in-app alerts) ───────────────────────────────────────
@@ -2968,8 +3196,8 @@ CREATE TABLE IF NOT EXISTS lms_notifications (
 );
 
 -- ─── Indexes ─────────────────────────────────────────────────────────────────
-CREATE INDEX IF NOT EXISTS idx_lms_chat_class_student  ON lms_chat_messages(class_id, student_id);
-CREATE INDEX IF NOT EXISTS idx_lms_chat_created        ON lms_chat_messages(created_at);
+CREATE INDEX IF NOT EXISTS idx_lms_chat_class     ON lms_chat_messages(class_id);
+CREATE INDEX IF NOT EXISTS idx_lms_chat_sent      ON lms_chat_messages(sent_at);
 CREATE INDEX IF NOT EXISTS idx_lms_attendance_session  ON lms_attendance_records(session_id);
 CREATE INDEX IF NOT EXISTS idx_lms_attendance_student  ON lms_attendance_records(student_id);
 CREATE INDEX IF NOT EXISTS idx_lms_coupons_code        ON lms_coupons(code);
@@ -2985,7 +3213,7 @@ CREATE INDEX IF NOT EXISTS idx_lms_notifs_read         ON lms_notifications(stud
 profiles (role = 'student')
   ↓ via lms_enrollments            → lms_classes
   ↓ via lms_attendance_records     → lms_sessions
-  ↓ via lms_chat_messages          → lms_classes  (student_id + class_id = one thread)
+  ↓ via lms_chat_messages          → lms_classes  (sender_id + class_id = group thread)
   ↓ via lms_orders                 → lms_products
   ↓ via lms_notification_prefs     (1:1 preferences row)
   ↓ via lms_notifications          (many in-app alerts)
@@ -2999,8 +3227,7 @@ lms_products
 lms_classes
   ↓ via lms_sessions               (many sessions per class)
   ↓ via lms_enrollments            (many students per class)
-  ↓ via lms_chat_messages          (messages scoped to class + student)
-  ↓ via lms_notifications          (class_id on notifications for deep-linking)
+  ↓ via lms_chat_messages          (group thread — all messages scoped to class)
 
 lms_sessions
   ↓ via lms_attendance_records     (one record per student per session)
@@ -3026,23 +3253,26 @@ ALTER TABLE lms_notifications       ENABLE ROW LEVEL SECURITY;
 -- All backend routes use supabaseServiceClient (service role) which bypasses RLS.
 -- These policies protect against any accidental direct-client queries.
 
--- lms_chat_messages
---   Student: sees their own messages in their enrolled classes
-CREATE POLICY "Student reads own chat" ON lms_chat_messages
+-- lms_chat_messages: enrolled students can read group chat for their class
+CREATE POLICY "Student reads enrolled class chat" ON lms_chat_messages
   FOR SELECT USING (
-    student_id = auth.uid()
-    AND NOT is_deleted
+    NOT is_deleted
+    AND EXISTS (
+      SELECT 1 FROM lms_enrollments
+      WHERE lms_enrollments.class_id = lms_chat_messages.class_id
+        AND lms_enrollments.student_id = auth.uid()
+    )
   );
 
---   Teacher: sees all messages in their classes
-CREATE POLICY "Teacher reads class chat" ON lms_chat_messages
+-- Teacher can read group chat for their own classes
+CREATE POLICY "Teacher reads own class chat" ON lms_chat_messages
   FOR SELECT USING (
-    EXISTS (
+    NOT is_deleted
+    AND EXISTS (
       SELECT 1 FROM lms_classes
       WHERE lms_classes.id = lms_chat_messages.class_id
         AND lms_classes.teacher_id = auth.uid()
     )
-    AND NOT is_deleted
   );
 
 CREATE POLICY "Service role full access on lms_chat_messages" ON lms_chat_messages
@@ -3388,19 +3618,17 @@ lmsPaymentsRouter.post('/payments/webhook', async (req, res, next) => {
   "classes": [
     {
       "id": "uuid",
+      "productId": "uuid",
       "name": "Step 1 Intensive Cohort",
       "description": "...",
-      "productId": "uuid",
-      "productName": "USMLE Step 1 Online Sessions",
       "teacherId": "uuid",
-      "teacherName": "Dr. Ahmed",
       "defaultDurationMinutes": 90,
-      "enrolledStudentCount": 12,
-      "createdAt": "2026-01-01T00:00:00Z"
+      "enrolledStudentIds": ["uuid-1", "uuid-2"]
     }
   ]
 }
 ```
+`enrolledStudentIds` is the array of enrolled student profile IDs. Frontend uses `.length` for counts and the array for enrollment management.
 
 ---
 
@@ -3423,7 +3651,7 @@ lmsPaymentsRouter.post('/payments/webhook', async (req, res, next) => {
 - `teacherId` must exist in `lms_teacher_profiles` with `status = 'approved'`
 - `productId` must exist in `lms_products` with `is_active = true`
 
-**Response `201`:** Created class object.
+**Response `201`:** Created class object — same shape as `GET /api/v1/admin/classes` item, with `enrolledStudentIds: []`.
 
 ---
 
@@ -3433,7 +3661,7 @@ lmsPaymentsRouter.post('/payments/webhook', async (req, res, next) => {
 
 **Request body:** Same fields as POST, all optional.
 
-**Response `200`:** `{ "message": "Class updated." }`
+**Response `200`:** Updated class object — same shape as `GET /api/v1/admin/classes` item.
 
 ---
 
@@ -3508,7 +3736,7 @@ lmsPaymentsRouter.post('/payments/webhook', async (req, res, next) => {
       "discountType": "percentage",
       "discountValue": 20,
       "maxUses": 100,
-      "usesCount": 14,
+      "usedCount": 14,
       "productId": null,
       "productName": null,
       "expiresAt": "2026-12-31T00:00:00Z",
@@ -3579,14 +3807,12 @@ lmsPaymentsRouter.post('/payments/webhook', async (req, res, next) => {
       "id": "uuid",
       "classId": "uuid",
       "className": "Step 1 Intensive Cohort",
-      "studentId": "uuid",
-      "studentName": "Alex Johnson",
+      "senderId": "uuid",
+      "senderName": "Ali Hassan",
       "senderRole": "student",
       "text": "Can you explain enzyme kinetics?",
-      "isRead": true,
       "isDeleted": false,
-      "flagged": false,
-      "createdAt": "2026-04-01T09:30:00Z"
+      "sentAt": "2026-04-01T09:30:00Z"
     }
   ]
 }
@@ -3596,7 +3822,7 @@ Note: `is_deleted = true` messages ARE included in admin view (so admin can see 
 
 ---
 
-#### `DELETE /api/v1/admin/chat/:messageId`
+#### `DELETE /api/v1/chat/messages/:messageId`
 
 **Auth:** Admin JWT
 
@@ -3606,56 +3832,15 @@ Note: `is_deleted = true` messages ARE included in admin view (so admin can see 
 
 ---
 
-#### `POST /api/v1/admin/chat/:classId/:studentId/flag`
-
-**Auth:** Admin JWT
-
-**Purpose:** Flags all messages in a (class, student) thread as `flagged = true`.
-
-**Response `200`:** `{ "message": "Conversation flagged.", "flaggedCount": 5 }`
-
----
-
 ### `lmsTeacher.ts` — New Endpoints (append to existing file)
 
-#### `GET /api/v1/teacher/classes/:classId/chat`
+#### `GET /api/v1/chat/group?classId=:classId`
 
-**Auth:** Teacher JWT
+**Auth:** Student or Teacher JWT (single shared endpoint — role checked from JWT)
 
-**Purpose:** Teacher fetches all student threads in a class. Returns latest message per student for the thread list sidebar.
+**Purpose:** Fetch group chat for a class. Used by both students and teachers.
 
-**Response `200`:**
-```json
-{
-  "threads": [
-    {
-      "studentId": "uuid",
-      "studentName": "Alex Johnson",
-      "lastMessage": "Can you explain enzyme kinetics?",
-      "lastMessageAt": "2026-04-01T09:30:00Z",
-      "unreadCount": 2
-    }
-  ]
-}
-```
-
-**SQL logic:** 
-```sql
-SELECT DISTINCT ON (student_id)
-  student_id, text AS last_message, created_at AS last_message_at,
-  COUNT(*) FILTER (WHERE NOT is_read AND sender_role = 'student') OVER (PARTITION BY student_id) AS unread_count
-FROM lms_chat_messages
-WHERE class_id = $classId AND NOT is_deleted
-ORDER BY student_id, created_at DESC
-```
-
----
-
-#### `GET /api/v1/teacher/classes/:classId/chat/:studentId`
-
-**Auth:** Teacher JWT
-
-**Purpose:** Teacher fetches full message thread with a specific student.
+**Guard:** Student must be enrolled in the class. Teacher must own the class.
 
 **Response `200`:**
 ```json
@@ -3663,10 +3848,12 @@ ORDER BY student_id, created_at DESC
   "messages": [
     {
       "id": "uuid",
+      "classId": "uuid",
+      "senderId": "uuid",
+      "senderName": "Ali Hassan",
       "senderRole": "student",
       "text": "Can you explain enzyme kinetics?",
-      "isRead": true,
-      "createdAt": "2026-04-01T09:30:00Z"
+      "sentAt": "2026-04-01T09:30:00Z"
     }
   ]
 }
@@ -3674,19 +3861,17 @@ ORDER BY student_id, created_at DESC
 
 ---
 
-#### `POST /api/v1/teacher/classes/:classId/chat/:studentId`
+#### `POST /api/v1/chat/group`
 
-**Auth:** Teacher JWT
+**Auth:** Student or Teacher JWT
 
-**Purpose:** Teacher replies to a student.
+**Purpose:** Send a message to the class group chat.
 
-**Request body:** `{ "text": "Enzyme kinetics deals with..." }`
+**Request body:** `{ "classId": "uuid", "text": "Enzyme kinetics deals with...", "senderName": "Dr. Ahmed" }` — `senderName` is denormalized, passed from client.
 
-**Side effects:**
-- Inserts message with `sender_role = 'teacher'`
-- Calls `notifyStudent({ studentId, type: 'chat_reply', title: 'New reply from teacher', ... })`
+**Guard:** Student must be enrolled + not on expired demo. Teacher must own the class.
 
-**Response `201`:** Created message object.
+**Response `201`:** Created message object (same shape as GET response item).
 
 ---
 
@@ -3714,7 +3899,52 @@ ORDER BY student_id, created_at DESC
 }
 ```
 
-> **Note:** Recordings are fully automated via the `recording.completed` webhook (see Section 8). Teachers have no recording endpoints — the system handles it.
+> **Note:** Recording URLs are auto-populated by the Zoom `recording.completed` webhook (see Section 8). However, three manual override endpoints exist for cases where the webhook fails or a teacher needs to correct the URL.
+
+#### `PATCH /api/v1/teacher/sessions/:id/recording`
+
+**Auth:** Teacher JWT
+
+**Purpose:** Manually set or update the recording URL for a session (webhook fallback / URL correction).
+
+**Request body:** `{ "url": "https://storage.url/recording.mp4" }`
+
+**Response `200`:** Updated `LmsSession` object.
+
+---
+
+#### `DELETE /api/v1/teacher/sessions/:id/recording`
+
+**Auth:** Teacher JWT
+
+**Purpose:** Remove the recording URL from a session.
+
+**Response `200`:** Updated `LmsSession` object (with `recordingUrl: null`).
+
+---
+
+#### `GET /api/v1/student/classes/:classId/recordings`
+
+**Auth:** Student JWT
+
+**Purpose:** Returns all completed sessions for a class that have a recording URL. Used by the student recordings page.
+
+**Response `200`:**
+```json
+{
+  "recordings": [
+    {
+      "sessionId": "uuid",
+      "classId": "uuid",
+      "scheduledAt": "2026-03-01T10:00:00Z",
+      "durationMinutes": 90,
+      "recordingUrl": "https://storage.url/recording.mp4",
+      "accessLevel": "full"
+    }
+  ]
+}
+```
+`accessLevel`: `"full"` for full-access students, `"demo_only"` for demo students with access to only the first recording, `"locked"` for expired demo students.
 
 ---
 
@@ -3753,24 +3983,25 @@ ORDER BY student_id, created_at DESC
 1. Get all classes for teacher
 2. Get all completed sessions across those classes
 3. For each session: get attendance records, compute attended count / total enrolled
-4. Aggregate: `avgAttendanceRate`, `avgActualDuration`, `totalStudentsTaught`, `sessionsCompleted`
+4. Aggregate: `avgAttendanceRate`, `avgActualDuration`, `totalStudentsTaught`, `totalSessionsCompleted`
 
 **Response `200`:**
 ```json
 {
   "analytics": {
-    "sessionsCompleted": 12,
+    "teacherId": "uuid",
+    "totalSessionsCompleted": 12,
     "avgAttendanceRate": 78,
-    "avgActualDurationMinutes": 87,
+    "avgActualDuration": 87,
     "totalStudentsTaught": 24,
     "perSession": [
       {
         "sessionId": "uuid",
         "scheduledAt": "2026-03-15T10:00:00Z",
-        "attendanceRate": 85,
-        "actualDurationMinutes": 92,
-        "attendedCount": 11,
-        "totalEnrolled": 13
+        "scheduledDuration": 90,
+        "actualDuration": 92,
+        "attendanceCount": 11,
+        "attendancePercent": 85
       }
     ]
   }
@@ -3781,42 +4012,9 @@ ORDER BY student_id, created_at DESC
 
 ### `lmsStudent.ts` — New Endpoints (append to existing file)
 
-#### `GET /api/v1/student/classes/:classId/chat`
+#### Chat endpoints — see `GET /api/v1/chat/group` and `POST /api/v1/chat/group` above (shared with teacher).
 
-**Auth:** Student JWT
-
-**Purpose:** Student fetches their own message thread in a class.
-
-**Guard:** Student must be enrolled in the class.
-
-**Side effect:** Marks all unread messages from teacher as read.
-
-**Response `200`:**
-```json
-{
-  "messages": [
-    {
-      "id": "uuid",
-      "senderRole": "student",
-      "text": "Can you explain enzyme kinetics?",
-      "isRead": true,
-      "createdAt": "2026-04-01T09:30:00Z"
-    }
-  ]
-}
-```
-
----
-
-#### `POST /api/v1/student/classes/:classId/chat`
-
-**Auth:** Student JWT
-
-**Request body:** `{ "text": "Can you explain enzyme kinetics?" }`
-
-**Guard:** Student must be enrolled + not on expired demo.
-
-**Response `201`:** Created message object.
+Students use the same unified chat endpoints. The backend determines access rights from the JWT role and validates enrollment/ownership.
 
 ---
 
@@ -3829,21 +4027,18 @@ ORDER BY student_id, created_at DESC
 **Response `200`:**
 ```json
 {
-  "attendance": {
-    "attendedCount": 8,
-    "missedCount": 2,
-    "cancelledCount": 1,
-    "attendanceRate": 80,
-    "records": [
-      {
-        "sessionId": "uuid",
-        "scheduledAt": "2026-03-01T10:00:00Z",
-        "status": "attended"
-      }
-    ]
-  }
+  "records": [
+    {
+      "sessionId": "uuid",
+      "classId": "uuid",
+      "scheduledAt": "2026-03-01T10:00:00Z",
+      "durationMinutes": 90,
+      "status": "attended"
+    }
+  ]
 }
 ```
+Note: The frontend `AttendancePage` computes `attendedCount`, `missedCount`, `cancelledCount`, and `attendanceRate` itself from the records array — no need to return aggregates from the backend.
 
 ---
 
@@ -3858,16 +4053,15 @@ ORDER BY student_id, created_at DESC
     {
       "id": "uuid",
       "type": "session_starting",
-      "title": "Session starting in 30 minutes",
-      "body": "Step 1 Intensive Cohort is starting soon.",
-      "isRead": false,
+      "message": "Session starting in 30 minutes",
       "classId": "uuid",
-      "sessionId": "uuid",
+      "read": false,
       "createdAt": "2026-04-01T09:30:00Z"
     }
   ]
 }
 ```
+Note: `message` is mapped from the DB `title` column (the most descriptive field). `body` is stored in DB for WhatsApp/email but not exposed to the frontend. `sessionId` is stored in DB for deep-linking logic but not in the `LmsNotification` type.
 
 ---
 
@@ -3891,12 +4085,13 @@ ORDER BY student_id, created_at DESC
 ```json
 {
   "prefs": {
-    "emailSessionReminders": true,
-    "emailNewNotices": true,
-    "emailChatReplies": true,
-    "pushSessionReminders": false,
-    "pushNewNotices": false,
-    "whatsappOptIn": false
+    "studentId": "uuid",
+    "emailEnabled": true,
+    "pushEnabled": false,
+    "sessionReminder": true,
+    "sessionStarted": true,
+    "sessionRescheduled": true,
+    "noticePosted": true
   }
 }
 ```
@@ -3919,19 +4114,17 @@ ORDER BY student_id, created_at DESC
 
 **Auth:** Student JWT
 
-**Purpose:** Student updates their display name and/or phone number.
+**Purpose:** Student updates their display name.
 
 **Request body:**
 ```json
 {
-  "fullName": "Alex Johnson",
-  "phone": "+1 555 0100"
+  "name": "Alex Johnson"
 }
 ```
 
 **Logic:**
 - Update `profiles.full_name` for `id = req.auth.userId`
-- `phone` — if you have a phone column on profiles, update it; otherwise add it in a migration
 
 **Response `200`:** `{ "message": "Profile updated." }`
 
@@ -3950,12 +4143,17 @@ ORDER BY student_id, created_at DESC
 {
   "programs": [
     {
-      "productId": "uuid",
-      "name": "USMLE Step 1 Online Sessions",
-      "description": "...",
-      "upfrontPrice": 299,
-      "installmentAmount": 99,
-      "installmentMonths": 3,
+      "product": {
+        "id": "uuid",
+        "name": "USMLE Step 1 Online Sessions",
+        "description": "...",
+        "upfrontPrice": 299,
+        "installmentAmount": 99,
+        "installmentMonths": 3,
+        "isActive": true,
+        "classIds": ["uuid"],
+        "createdAt": "2026-01-01T00:00:00Z"
+      },
       "teacherName": "Dr. Ahmed",
       "teacherId": "uuid",
       "classId": "uuid",
@@ -3965,6 +4163,7 @@ ORDER BY student_id, created_at DESC
   ]
 }
 ```
+Response matches the frontend `ProgramListing` interface: `{ product: Product, teacherName, teacherId, classId, sessionCount, enrolledCount }`.
 
 ---
 
@@ -4135,17 +4334,14 @@ Every service function in `frontend/src/services/lmsApi.ts` has a `// BACKEND SW
 | `submitCheckout()` | lmsApi.ts | `POST /api/v1/payments/checkout` | student |
 | `studentGetEnrolledClasses()` | lmsApi.ts | `GET /api/v1/student/classes` | student |
 | `studentGetSessionsForClass()` | lmsApi.ts | `GET /api/v1/student/classes/:classId/sessions` | student |
-| `getChatMessagesForClass()` | lmsApi.ts | `GET /api/v1/student/classes/:classId/chat` | student |
-| `sendChatMessage()` (student) | lmsApi.ts | `POST /api/v1/student/classes/:classId/chat` | student |
-| `markChatMessageRead()` | lmsApi.ts | `PATCH /api/v1/student/notifications/:id/read` | student |
-| `deleteChatMessage()` | lmsApi.ts | `DELETE /api/v1/admin/chat/:messageId` | admin |
-| `getAllChatThreads()` | lmsApi.ts | `GET /api/v1/teacher/classes/:classId/chat` | teacher |
-| `sendChatMessage()` (teacher) | lmsApi.ts | `POST /api/v1/teacher/classes/:classId/chat/:studentId` | teacher |
+| `getGroupChatMessages(classId)` | lmsApi.ts | `GET /api/v1/chat/group?classId=:classId` | student or teacher |
+| `sendGroupChatMessage(classId, senderId, senderName, senderRole, text)` | lmsApi.ts | `POST /api/v1/chat/group` | student or teacher |
+| `deleteChatMessage(messageId)` | lmsApi.ts | `DELETE /api/v1/chat/messages/:messageId` | admin |
 | `getAttendanceForClass()` | lmsApi.ts | `GET /api/v1/student/classes/:classId/attendance` | student |
-| `getRecordingsForClass()` | lmsApi.ts | `GET /api/v1/student/classes/:classId/sessions` (filter `status=completed` + `recordingUrl != null`) | student |
+| `getRecordingsForClass()` | lmsApi.ts | `GET /api/v1/student/classes/:classId/recordings` | student |
 | `getSessionSdkToken(sessionId)` | lmsApi.ts | `GET /api/v1/sessions/:sessionId/sdk-token` | student or teacher |
-| ~~`updateSessionRecording()`~~ | removed | Auto-populated by `recording.completed` webhook — teacher does nothing | — |
-| ~~`removeSessionRecording()`~~ | removed | Recordings are system-managed, not teacher-managed | — |
+| `updateSessionRecording(sessionId, url)` | lmsApi.ts | `PATCH /api/v1/teacher/sessions/:id/recording` | teacher |
+| `removeSessionRecording(sessionId)` | lmsApi.ts | `DELETE /api/v1/teacher/sessions/:id/recording` | teacher |
 | `getStudentNotificationPrefs()` | lmsApi.ts | `GET /api/v1/student/notification-prefs` | student |
 | `updateStudentNotificationPrefs()` | lmsApi.ts | `PATCH /api/v1/student/notification-prefs` | student |
 | `getStudentLmsNotifications()` | lmsApi.ts | `GET /api/v1/student/notifications` | student |
@@ -4185,16 +4381,16 @@ headers: { 'Authorization': `Bearer ${jwt}`, 'Content-Type': 'application/json' 
 The backend returns snake_case. The frontend TypeScript types use camelCase. Map them in each service function:
 
 ```typescript
-// Example for getChatMessagesForClass():
+// Example for getGroupChatMessages():
 const raw = await res.json()
 return raw.messages.map((m: any) => ({
   id: m.id,
   classId: m.class_id,
-  studentId: m.student_id,
+  senderId: m.sender_id,
+  senderName: m.sender_name,
   senderRole: m.sender_role,
   text: m.text,
-  isRead: m.is_read,
-  createdAt: m.created_at,
+  sentAt: m.sent_at,  // ChatMessage.sentAt — DB column is sent_at
 }))
 ```
 
@@ -4331,11 +4527,12 @@ Follow this exact order. Each step builds on the previous.
 - [ ] Double checkout for same product/class → second enrollment attempt uses upsert (no duplicate row)
 
 ### Chat
-- [ ] Student sends message → appears in teacher's thread list
-- [ ] Teacher replies → student sees new message in their thread
-- [ ] Admin can view all messages including soft-deleted ones
-- [ ] Admin deletes message → `is_deleted = true` in DB, hidden from student/teacher GET
+- [ ] Student posts message → appears in group chat for all enrolled students and teacher
+- [ ] Teacher posts message → appears in group chat for all enrolled students
+- [ ] Admin can view group chat for any class
+- [ ] Admin soft-deletes message → `is_deleted = true` in DB, hidden from student/teacher GET
 - [ ] Student in class A cannot read chat messages from class B
+- [ ] Student not enrolled in class cannot read chat
 
 ### Attendance
 - [ ] Teacher submits attendance → `lms_attendance_records` rows inserted
@@ -4349,7 +4546,7 @@ Follow this exact order. Each step builds on the previous.
 - [ ] Student A cannot mark Student B's notifications as read
 
 ### Teacher analytics
-- [ ] Analytics returns correct `sessionsCompleted` count
+- [ ] Analytics returns correct `totalSessionsCompleted` count
 - [ ] `avgAttendanceRate` computed from real `lms_attendance_records` (not from `attendance_count` column)
 - [ ] Teacher with no completed sessions returns zeros, not 500
 
@@ -4711,9 +4908,9 @@ The frontend has `/editor/supervision` → `EditorSupervisionPage` which renders
 // Add to backend/src/routes/lmsEditor.ts
 
 // ─── GET /api/v1/editor/chat ─────────────────────────────────────────────────
-// Editor supervision — read-only view of all chat threads.
-// Identical response shape to GET /api/v1/admin/chat.
-// Editors CANNOT delete messages or flag conversations (admin-only actions).
+// Editor supervision — read-only view of all group chats per class.
+// Identical response shape to GET /api/v1/admin/chat (supervision view with isDeleted field).
+// Editors CANNOT delete messages (admin-only action).
 lmsEditorRouter.get('/editor/chat', authenticateRequest, requireRole('editor'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -4722,11 +4919,11 @@ lmsEditorRouter.get('/editor/chat', authenticateRequest, requireRole('editor'),
       let query = supabaseServiceClient
         .from('lms_chat_messages')
         .select(`
-          id, class_id, student_id, sender_role, text,
-          is_read, is_deleted, flagged, created_at,
+          id, class_id, sender_id, sender_name, sender_role, text,
+          is_deleted, sent_at,
           lms_classes!inner(name)
         `)
-        .order('created_at', { ascending: false })
+        .order('sent_at', { ascending: false })
         .limit(200)  // pagination — see Gap 5
 
       if (classIdFilter) query = query.eq('class_id', classIdFilter)
@@ -4734,28 +4931,16 @@ lmsEditorRouter.get('/editor/chat', authenticateRequest, requireRole('editor'),
       const { data, error } = await query
       if (error) throw new HttpError(500, 'FETCH_FAILED', error.message)
 
-      // Fetch student names
-      const studentIds = [...new Set((data ?? []).map(m => m.student_id))]
-      const { data: profiles } = await supabaseServiceClient
-        .from('profiles')
-        .select('id, full_name')
-        .in('id', studentIds)
-
-      const nameMap: Record<string, string> = {}
-      ;(profiles ?? []).forEach(p => { nameMap[p.id] = p.full_name })
-
       const result = (data ?? []).map(m => ({
         id: m.id,
         classId: m.class_id,
         className: (m.lms_classes as any).name,
-        studentId: m.student_id,
-        studentName: nameMap[m.student_id] ?? 'Unknown',
+        senderId: m.sender_id,
+        senderName: m.sender_name,
         senderRole: m.sender_role,
-        text: m.is_deleted ? '[Message deleted]' : m.text,  // editors see placeholder, not content
-        isRead: m.is_read,
+        text: m.is_deleted ? '[Message deleted]' : m.text,
         isDeleted: m.is_deleted,
-        flagged: m.flagged,
-        createdAt: m.created_at,
+        sentAt: m.sent_at,
       }))
 
       return res.status(200).json({ messages: result })
@@ -4764,7 +4949,7 @@ lmsEditorRouter.get('/editor/chat', authenticateRequest, requireRole('editor'),
 )
 ```
 
-**Key difference from admin:** Editors see `[Message deleted]` for soft-deleted messages instead of the actual content. They cannot call DELETE or flag endpoints.
+**Key difference from admin:** Editors see `[Message deleted]` for soft-deleted messages instead of the actual content. They cannot call the DELETE endpoint.
 
 **Add to `frontend/src/services/lmsApi.ts`:**
 
@@ -4803,12 +4988,11 @@ let query = supabaseServiceClient
   .from('lms_chat_messages')
   .select('*')
   .eq('class_id', classId)
-  .eq('student_id', studentId)
   .eq('is_deleted', false)
-  .order('created_at', { ascending: false })
+  .order('sent_at', { ascending: false })
   .limit(limit)
 
-if (before) query = query.lt('created_at', before)
+if (before) query = query.lt('sent_at', before)
 
 const { data } = await query
 // Return in ascending order for display
@@ -4816,7 +5000,7 @@ return res.json({ messages: (data ?? []).reverse(), hasMore: (data ?? []).length
 ```
 
 Apply the same `limit` + `before` pattern to:
-- `GET /api/v1/teacher/classes/:classId/chat/:studentId`
+- `GET /api/v1/teacher/classes/:classId/chat`
 - `GET /api/v1/admin/chat`
 - `GET /api/v1/editor/chat`
 
@@ -4829,9 +5013,10 @@ After registration, teachers have no way to update their bio or phone. Add to `l
 ```typescript
 // ─── PATCH /api/v1/teacher/profile ───────────────────────────────────────────
 const updateTeacherProfileSchema = z.object({
-  fullName: z.string().min(2).optional(),
-  phone:    z.string().min(5).optional(),
-  bio:      z.string().min(10).max(300).optional(),
+  name:              z.string().min(2).optional(),
+  phone:             z.string().min(5).optional(),
+  bio:               z.string().min(10).max(300).optional(),
+  profilePictureUrl: z.string().optional(),
 })
 
 lmsTeacherRouter.patch('/teacher/profile', authenticateRequest, requireRole('teacher'),
@@ -4840,20 +5025,23 @@ lmsTeacherRouter.patch('/teacher/profile', authenticateRequest, requireRole('tea
       const parsed = updateTeacherProfileSchema.parse(req.body)
       const teacherId = req.auth!.userId
 
-      if (parsed.fullName || parsed.phone) {
+      if (parsed.name || parsed.phone) {
         const profileUpdates: Record<string, string> = {}
-        if (parsed.fullName) profileUpdates.full_name = parsed.fullName
-        if (parsed.phone)    profileUpdates.phone = parsed.phone
+        if (parsed.name)  profileUpdates.full_name = parsed.name
+        if (parsed.phone) profileUpdates.phone = parsed.phone
         await supabaseServiceClient
           .from('profiles')
           .update(profileUpdates)
           .eq('id', teacherId)
       }
 
-      if (parsed.bio) {
+      if (parsed.bio || parsed.profilePictureUrl) {
+        const tpUpdates: Record<string, unknown> = {}
+        if (parsed.bio)               tpUpdates.bio = parsed.bio
+        if (parsed.profilePictureUrl) tpUpdates.profile_picture_url = parsed.profilePictureUrl
         await supabaseServiceClient
           .from('lms_teacher_profiles')
-          .update({ bio: parsed.bio })
+          .update(tpUpdates)
           .eq('id', teacherId)
       }
 
@@ -4906,8 +5094,8 @@ const chatLimiter = rateLimit({
 })
 
 // Apply only to chat POST endpoints:
-app.use('/api/v1/student/classes', chatLimiter)  // covers POST .../chat
-app.use('/api/v1/teacher/classes', chatLimiter)  // covers POST .../chat/:studentId
+app.use('/api/v1/student/classes', chatLimiter)   // POST .../chat
+app.use('/api/v1/teacher/classes', chatLimiter)    // POST .../chat
 ```
 
 ---

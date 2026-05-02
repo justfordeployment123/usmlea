@@ -1,7 +1,7 @@
 /* eslint-disable react-refresh/only-export-components */
-import React, { createContext, useContext, useState } from 'react'
+import React, { createContext, useContext, useState, useEffect } from 'react'
 import { safeParseJson } from '../services/errorUtils'
-import { loginEditor } from '../services/lmsApi'
+import { loginEditor, refreshSession, isSessionExpired } from '../services/lmsApi'
 import type { Editor } from '../types/lms'
 
 interface EditorSession {
@@ -48,12 +48,27 @@ export const EditorAuthProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const [editor, setEditor] = useState<Editor | null>(initial.editor)
   const [session, setSession] = useState<EditorSession | null>(initial.session)
 
+  useEffect(() => {
+    if (!editor) return
+    if (!isSessionExpired(EDITOR_AUTH_KEY)) return
+    refreshSession(EDITOR_AUTH_KEY).then(newToken => {
+      if (newToken) {
+        setSession({ accessToken: newToken })
+      } else {
+        localStorage.removeItem(EDITOR_AUTH_KEY)
+        setEditor(null)
+        setSession(null)
+      }
+    })
+  }, [])
+
   const login = async (email: string, password: string): Promise<Editor> => {
     const response = await loginEditor(email.trim().toLowerCase(), password)
-    const s: EditorSession = { accessToken: response.accessToken }
-    localStorage.setItem(EDITOR_AUTH_KEY, JSON.stringify({ editor: response.editor, session: s }))
+    const raw = localStorage.getItem(EDITOR_AUTH_KEY)
+    const existing = raw ? JSON.parse(raw) : {}
+    localStorage.setItem(EDITOR_AUTH_KEY, JSON.stringify({ ...existing, editor: response.editor, session: { ...existing.session, accessToken: response.accessToken } }))
     setEditor(response.editor)
-    setSession(s)
+    setSession({ accessToken: response.accessToken })
     return response.editor
   }
 

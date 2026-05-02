@@ -1,6 +1,8 @@
+import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { CheckCircle2, Video, Users, BarChart3, Shield, ArrowRight, Play } from 'lucide-react'
-import { getProducts } from '../../data/lms'
+import { apiRequest } from '../../services/httpClient'
+import type { Product } from '../../types/lms'
 import '../../styles/public.css'
 
 const FEATURES = [
@@ -51,7 +53,13 @@ const TESTIMONIALS = [
 ]
 
 export default function HomePage() {
-  const products = getProducts().filter(p => p.isActive)
+  const [products, setProducts] = useState<Product[]>([])
+
+  useEffect(() => {
+    apiRequest<{ products: Product[] }>('/products')
+      .then(res => setProducts(res.products))
+      .catch(() => setProducts([]))
+  }, [])
 
   return (
     <>

@@ -52,6 +52,7 @@ import InboxPage           from './pages/student/InboxPage'
 import FlashcardsPage      from './pages/student/FlashcardsPage'
 import UpgradePage         from './pages/student/UpgradePage'
 import MyClassesPage       from './pages/student/MyClassesPage'
+import ClassAccessGuard    from './components/student/ClassAccessGuard'
 import LiveSessionPage     from './pages/student/LiveSessionPage'
 import StudentProfilePage  from './pages/student/StudentProfilePage'
 import AttendancePage      from './pages/student/AttendancePage'
@@ -77,6 +78,7 @@ import AdminAnnouncementsPage from './pages/admin/AdminAnnouncementsPage'
 import AdminBillingSettingsPage from './pages/admin/AdminBillingSettingsPage'
 import AdminAffiliatesPage from './pages/admin/AdminAffiliatesPage'
 import AdminTeachersPage   from './pages/admin/AdminTeachersPage'
+import AdminEditorsPage    from './pages/admin/AdminEditorsPage'
 import AdminProductsPage   from './pages/admin/AdminProductsPage'
 import AdminLmsSessionsPage from './pages/admin/AdminLmsSessionsPage'
 import AdminClassesPage    from './pages/admin/AdminClassesPage'
@@ -165,10 +167,12 @@ export default function App() {
                           <Route path="/student/upgrade" element={<UpgradePage />} />
                           {/* LMS routes */}
                           <Route path="/student/classes" element={<MyClassesPage />} />
-                          <Route path="/student/classes/:classId/session" element={<LiveSessionPage />} />
-                          <Route path="/student/classes/:classId/attendance" element={<AttendancePage />} />
-                          <Route path="/student/classes/:classId/recordings" element={<RecordedSessionsPage />} />
-                          <Route path="/student/classes/:classId/chat" element={<StudentChatPage />} />
+                          <Route path="/student/classes/:classId" element={<ClassAccessGuard />}>
+                            <Route path="session" element={<LiveSessionPage />} />
+                            <Route path="attendance" element={<AttendancePage />} />
+                            <Route path="recordings" element={<RecordedSessionsPage />} />
+                            <Route path="chat" element={<StudentChatPage />} />
+                          </Route>
                           <Route path="/student/profile" element={<StudentProfilePage />} />
                           <Route path="/student/demo-expired" element={<DemoExpiredPage />} />
                           <Route path="/student/lms-preview" element={<LmsFomoPreviewPage />} />
@@ -200,6 +204,7 @@ export default function App() {
                           <Route path="/admin/affiliates" element={<AdminAffiliatesPage />} />
                           {/* LMS admin routes */}
                           <Route path="/admin/teachers" element={<AdminTeachersPage />} />
+                          <Route path="/admin/editors" element={<AdminEditorsPage />} />
                           <Route path="/admin/products" element={<AdminProductsPage />} />
                           <Route path="/admin/lms-sessions" element={<AdminLmsSessionsPage />} />
                           <Route path="/admin/classes" element={<AdminClassesPage />} />

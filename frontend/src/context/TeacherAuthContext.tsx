@@ -1,7 +1,7 @@
 /* eslint-disable react-refresh/only-export-components */
-import React, { createContext, useContext, useState } from 'react'
+import React, { createContext, useContext, useState, useEffect } from 'react'
 import { safeParseJson } from '../services/errorUtils'
-import { loginTeacher, registerTeacher } from '../services/lmsApi'
+import { loginTeacher, registerTeacher, refreshSession, isSessionExpired } from '../services/lmsApi'
 import type { Teacher } from '../types/lms'
 import type { RegisterTeacherPayload } from '../types/lms'
 
@@ -29,12 +29,7 @@ const TEACHER_AUTH_KEY = 'nextgen.teacher.auth'
 function isTeacher(value: unknown): value is Teacher {
   if (!value || typeof value !== 'object') return false
   const t = value as Partial<Teacher>
-  return (
-    typeof t.id === 'string' &&
-    typeof t.name === 'string' &&
-    typeof t.email === 'string' &&
-    typeof t.status === 'string'
-  )
+  return typeof t.id === 'string' && typeof t.name === 'string' && typeof t.email === 'string' && typeof t.status === 'string'
 }
 
 function isPersisted(value: unknown): value is PersistedTeacherAuth {
@@ -56,11 +51,26 @@ export const TeacherAuthProvider: React.FC<{ children: React.ReactNode }> = ({ c
   const [teacher, setTeacher] = useState<Teacher | null>(initial.teacher)
   const [session, setSession] = useState<TeacherSession | null>(initial.session)
 
+  useEffect(() => {
+    if (!teacher) return
+    if (!isSessionExpired(TEACHER_AUTH_KEY)) return
+    refreshSession(TEACHER_AUTH_KEY).then(newToken => {
+      if (newToken) {
+        setSession({ accessToken: newToken })
+      } else {
+        localStorage.removeItem(TEACHER_AUTH_KEY)
+        setTeacher(null)
+        setSession(null)
+      }
+    })
+  }, [])
+
   const persist = (t: Teacher, token: string) => {
-    const s: TeacherSession = { accessToken: token }
-    localStorage.setItem(TEACHER_AUTH_KEY, JSON.stringify({ teacher: t, session: s }))
+    const raw = localStorage.getItem(TEACHER_AUTH_KEY)
+    const existing = raw ? JSON.parse(raw) : {}
+    localStorage.setItem(TEACHER_AUTH_KEY, JSON.stringify({ ...existing, teacher: t, session: { ...existing.session, accessToken: token } }))
     setTeacher(t)
-    setSession(s)
+    setSession({ accessToken: token })
   }
 
   const login = async (email: string, password: string): Promise<Teacher> => {
@@ -70,9 +80,9 @@ export const TeacherAuthProvider: React.FC<{ children: React.ReactNode }> = ({ c
   }
 
   const register = async (payload: RegisterTeacherPayload): Promise<Teacher> => {
-    const newTeacher = await registerTeacher(payload)
-    persist(newTeacher, `mock-teacher-token-${newTeacher.id}`)
-    return newTeacher
+    const response = await registerTeacher(payload)
+    setTeacher(response.teacher)
+    return response.teacher
   }
 
   const logout = () => {
@@ -83,7 +93,9 @@ export const TeacherAuthProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
   const refreshTeacher = (updated: Teacher) => {
     if (!session) return
-    localStorage.setItem(TEACHER_AUTH_KEY, JSON.stringify({ teacher: updated, session }))
+    const raw = localStorage.getItem(TEACHER_AUTH_KEY)
+    const existing = raw ? JSON.parse(raw) : {}
+    localStorage.setItem(TEACHER_AUTH_KEY, JSON.stringify({ ...existing, teacher: updated }))
     setTeacher(updated)
   }
 

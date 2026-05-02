@@ -242,3 +242,197 @@ authRouter.post('/auth/student/reset-password', async (req: Request, res: Respon
     return next(error)
   }
 })
+
+// ─── Teacher Register ─────────────────────────────────────────────────────────
+const teacherRegisterSchema = z.object({
+  name:           z.string().min(2),
+  email:          z.string().email(),
+  password:       z.string().min(8),
+  phone:          z.string().min(5),
+  bio:            z.string().min(10).max(300),
+  profilePicture: z.string().optional(),
+})
+
+authRouter.post('/auth/teacher/register', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const parsed = teacherRegisterSchema.parse(req.body)
+    const normalizedEmail = parsed.email.trim().toLowerCase()
+
+    const { data: authData, error: authError } = await supabaseServiceClient.auth.admin.createUser({
+      email: normalizedEmail,
+      password: parsed.password,
+      email_confirm: true,
+      user_metadata: { full_name: parsed.name },
+    })
+
+    if (authError || !authData.user) {
+      throw new HttpError(400, 'CREATE_USER_FAILED', authError?.message ?? 'Failed to create user')
+    }
+
+    const userId = authData.user.id
+
+    const { error: profileError } = await supabaseServiceClient
+      .from('profiles')
+      .insert({ id: userId, email: normalizedEmail, full_name: parsed.name, role: 'teacher', phone: parsed.phone })
+
+    if (profileError) {
+      await supabaseServiceClient.auth.admin.deleteUser(userId)
+      throw new HttpError(500, 'PROFILE_CREATE_FAILED', profileError.message)
+    }
+
+    const { error: teacherError } = await supabaseServiceClient
+      .from('lms_teacher_profiles')
+      .insert({ id: userId, phone: parsed.phone, bio: parsed.bio, profile_picture_url: parsed.profilePicture ?? null, status: 'pending' })
+
+    if (teacherError) {
+      await supabaseServiceClient.auth.admin.deleteUser(userId)
+      throw new HttpError(500, 'TEACHER_PROFILE_FAILED', teacherError.message)
+    }
+
+    return res.status(201).json({
+      teacher: {
+        id: userId,
+        name: parsed.name,
+        email: normalizedEmail,
+        phone: parsed.phone,
+        bio: parsed.bio,
+        profilePicture: parsed.profilePicture ?? null,
+        status: 'pending',
+        registeredAt: new Date().toISOString(),
+        assignedClassIds: [],
+      },
+    })
+  } catch (err) {
+    return next(err)
+  }
+})
+
+// ─── Teacher Login ────────────────────────────────────────────────────────────
+const teacherLoginSchema = z.object({
+  email:    z.string().email(),
+  password: z.string().min(8),
+})
+
+authRouter.post('/auth/teacher/login', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const parsed = teacherLoginSchema.parse(req.body)
+
+    const { data, error } = await supabaseAnonClient.auth.signInWithPassword({
+      email: parsed.email.trim().toLowerCase(),
+      password: parsed.password,
+    })
+
+    if (error || !data.user || !data.session) {
+      throw new HttpError(401, 'LOGIN_FAILED', 'Invalid email or password')
+    }
+
+    const { data: profile } = await supabaseServiceClient
+      .from('profiles')
+      .select('role, full_name, email')
+      .eq('id', data.user.id)
+      .single()
+
+    if (!profile || profile.role !== 'teacher') {
+      throw new HttpError(403, 'ROLE_MISMATCH', 'This account is not a teacher account')
+    }
+
+    const { data: teacherProfile } = await supabaseServiceClient
+      .from('lms_teacher_profiles')
+      .select('phone, bio, profile_picture_url, status, created_at')
+      .eq('id', data.user.id)
+      .single()
+
+    if (!teacherProfile) {
+      throw new HttpError(500, 'TEACHER_DATA_MISSING', 'Teacher profile not found')
+    }
+
+    if (teacherProfile.status === 'suspended') {
+      throw new HttpError(403, 'ACCOUNT_SUSPENDED', 'Your account has been suspended. Contact support.')
+    }
+
+    const { data: classes } = await supabaseServiceClient
+      .from('lms_classes')
+      .select('id')
+      .eq('teacher_id', data.user.id)
+
+    return res.status(200).json({
+      teacher: {
+        id: data.user.id,
+        name: profile.full_name,
+        email: profile.email,
+        phone: teacherProfile.phone,
+        bio: teacherProfile.bio,
+        profilePicture: teacherProfile.profile_picture_url ?? null,
+        status: teacherProfile.status,
+        registeredAt: teacherProfile.created_at,
+        assignedClassIds: (classes ?? []).map(c => c.id),
+      },
+      session: data.session,
+    })
+  } catch (err) {
+    return next(err)
+  }
+})
+
+// ─── Token Refresh ────────────────────────────────────────────────────────────
+const refreshSchema = z.object({ refreshToken: z.string().min(1) })
+
+authRouter.post('/auth/refresh', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { refreshToken } = refreshSchema.parse(req.body)
+    const { data, error } = await supabaseAnonClient.auth.refreshSession({ refresh_token: refreshToken })
+    if (error || !data.session) {
+      throw new HttpError(401, 'REFRESH_FAILED', 'Session expired. Please log in again.')
+    }
+    return res.status(200).json({ session: data.session })
+  } catch (err) { return next(err) }
+})
+
+// ─── Editor Login ─────────────────────────────────────────────────────────────
+authRouter.post('/auth/editor/login', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const parsed = teacherLoginSchema.parse(req.body)
+
+    const { data, error } = await supabaseAnonClient.auth.signInWithPassword({
+      email: parsed.email.trim().toLowerCase(),
+      password: parsed.password,
+    })
+
+    if (error || !data.user || !data.session) {
+      throw new HttpError(401, 'LOGIN_FAILED', 'Invalid email or password')
+    }
+
+    const { data: profile } = await supabaseServiceClient
+      .from('profiles')
+      .select('role, full_name, email')
+      .eq('id', data.user.id)
+      .single()
+
+    if (!profile || profile.role !== 'editor') {
+      throw new HttpError(403, 'ROLE_MISMATCH', 'This account is not an editor account')
+    }
+
+    const { data: editorProfile } = await supabaseServiceClient
+      .from('lms_editor_profiles')
+      .select('created_by_admin_id, created_at')
+      .eq('id', data.user.id)
+      .single()
+
+    if (!editorProfile) {
+      throw new HttpError(500, 'EDITOR_DATA_MISSING', 'Editor profile not found')
+    }
+
+    return res.status(200).json({
+      editor: {
+        id: data.user.id,
+        name: profile.full_name,
+        email: profile.email,
+        createdAt: editorProfile.created_at,
+        createdByAdminId: editorProfile.created_by_admin_id,
+      },
+      session: data.session,
+    })
+  } catch (err) {
+    return next(err)
+  }
+})

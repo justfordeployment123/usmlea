@@ -53,9 +53,6 @@ export default function TeacherLoginPage() {
               </div>
             ))}
           </div>
-          <div className="auth-demo-hint">
-            <span>Demo:</span> james@teacher.com / teacher123
-          </div>
         </div>
       </div>
 

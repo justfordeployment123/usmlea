@@ -1,8 +1,9 @@
 /* eslint-disable react-refresh/only-export-components */
-import React, { createContext, useContext, useState } from 'react'
+import React, { createContext, useContext, useState, useEffect } from 'react'
 import { safeParseJson } from '../services/errorUtils'
 import { captureException, logWarn } from '../services/observability'
 import { completeStudentOnboarding, loginStudent, registerStudent } from '../services/authApi'
+import { isSessionExpired, refreshSession } from '../services/lmsApi'
 import type { PlanId } from '../types/subscription'
 
 interface StudentUser {
@@ -153,8 +154,21 @@ function loadInitialStudentUser(): StudentUser | null {
   return migratedUser
 }
 
+const STUDENT_KEY = 'nextgen.student.auth'
+
 export const StudentAuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<StudentUser | null>(() => loadInitialStudentUser())
+
+  useEffect(() => {
+    if (!user) return
+    if (!isSessionExpired(STUDENT_KEY)) return
+    refreshSession(STUDENT_KEY).then(newToken => {
+      if (!newToken) {
+        localStorage.removeItem(STUDENT_KEY)
+        setUser(null)
+      }
+    })
+  }, [])
 
   const login = async (email: string, password: string): Promise<StudentUser> => {
     const normalizedEmail = normalizeEmail(email)

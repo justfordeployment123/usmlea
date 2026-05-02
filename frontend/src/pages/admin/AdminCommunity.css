@@ -3,7 +3,6 @@
   display: flex;
   flex-direction: column;
   height: calc(100vh - 64px - 56px);
-  max-width: 860px;
 }
 
 .adm-community__header {

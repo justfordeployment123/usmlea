@@ -1,205 +1,157 @@
-import { useState, useEffect } from 'react'
-import { getAllClassesWithProducts } from '../../services/lmsApi'
-import type { ClassWithProduct } from '../../types/lms'
-import '../../styles/editor.css'
-import { Eye, MessageSquare, Shield } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
+import { Eye, MessageSquare, Shield, Users } from 'lucide-react'
+import { editorGetClassesWithProducts, editorGetChatMessages } from '../../services/lmsApi'
+import type { ClassWithProduct, ChatMessage } from '../../types/lms'
+import '../../styles/chat.css'
 
-interface MockMessage {
-  id: string
-  sender: 'student' | 'teacher'
-  name: string
-  text: string
-  time: string
+function formatTime(d: string) {
+  return new Date(d).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 }
 
-function getMockMessages(className: string): MockMessage[] {
-  return [
-    {
-      id: '1',
-      sender: 'student',
-      name: 'Student A',
-      text: `Hello! I had a question about the material from the last ${className} session. Could you clarify the mechanism of action we discussed?`,
-      time: '10:05 AM',
-    },
-    {
-      id: '2',
-      sender: 'teacher',
-      name: 'Dr. James',
-      text: 'Of course! The key point is that the receptor undergoes conformational change upon ligand binding, which triggers the downstream signaling cascade. Does that help clarify things?',
-      time: '10:07 AM',
-    },
-    {
-      id: '3',
-      sender: 'student',
-      name: 'Student B',
-      text: 'That makes sense! Quick follow-up — will that be on the exam next week?',
-      time: '10:09 AM',
-    },
-    {
-      id: '4',
-      sender: 'teacher',
-      name: 'Dr. James',
-      text: 'Yes, it is a high-yield topic. Make sure to review pages 142–148 in your notes. I\'ll post a summary notice on the board shortly.',
-      time: '10:10 AM',
-    },
-  ]
+function formatDate(d: string) {
+  return new Date(d).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })
+}
+
+function isSameDay(a: string, b: string) {
+  return new Date(a).toDateString() === new Date(b).toDateString()
 }
 
 export default function EditorSupervisionPage() {
   const [classes, setClasses] = useState<ClassWithProduct[]>([])
-  const [selectedClassId, setSelectedClassId] = useState<string | null>(null)
+  const [selectedClassId, setSelectedClassId] = useState<string>('')
+  const [messages, setMessages] = useState<ChatMessage[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadingMsgs, setLoadingMsgs] = useState(false)
+  const bottomRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    getAllClassesWithProducts().then(cls => {
+    editorGetClassesWithProducts().then(cls => {
       setClasses(cls)
+      if (cls[0]) setSelectedClassId(cls[0].id)
       setLoading(false)
-    })
+    }).catch(() => setLoading(false))
   }, [])
 
+  useEffect(() => {
+    if (!selectedClassId) return
+    setLoadingMsgs(true)
+    editorGetChatMessages(selectedClassId)
+      .then(setMessages)
+      .catch(() => setMessages([]))
+      .finally(() => setLoadingMsgs(false))
+  }, [selectedClassId])
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages])
+
   const selectedClass = classes.find(c => c.id === selectedClassId)
-  const messages = selectedClass ? getMockMessages(selectedClass.name) : []
 
   return (
-    <div className="editor-page">
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       {/* Header */}
-      <div className="editor-section" style={{ padding: '18px 20px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div>
-            <h1 style={{ fontSize: '1.2rem', fontWeight: 800, color: '#1E1B4B', margin: 0 }}>
-              Class Supervision
-            </h1>
-            <p style={{ fontSize: '0.85rem', color: '#6B7280', margin: '4px 0 0' }}>
-              Monitor conversations across all classes. Read-only view.
-            </p>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#EEF2FF', border: '1px solid #bae6fd', borderRadius: 8, padding: '5px 10px' }}>
-            <Shield size={13} style={{ color: '#3730A3' }} />
-            <span style={{ fontSize: '0.75rem', color: '#3730A3', fontWeight: 600 }}>Supervision Active</span>
-          </div>
+      <div style={{ background: '#fff', border: '1px solid #E0E7FF', borderRadius: 14, padding: '16px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div>
+          <h1 style={{ fontSize: '1.15rem', fontWeight: 800, color: '#1E1B4B', margin: 0 }}>Chat Supervision</h1>
+          <p style={{ fontSize: '0.83rem', color: '#6B7280', margin: '3px 0 0' }}>Monitor group chats per class. Select a class from the left panel.</p>
+        </div>
+        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '5px 10px', background: '#EEF2FF', border: '1px solid #C7D2FE', borderRadius: 8, fontSize: '0.72rem', fontWeight: 600, color: '#3730A3' }}>
+          <Shield size={12} /> Editor Supervision
         </div>
       </div>
 
-      {/* Chat Panel */}
-      <div className="editor-chat-panel">
-        {/* Sidebar */}
-        <div className="editor-chat-sidebar">
-          <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.06em', padding: '4px 10px 8px' }}>
-            Classes ({classes.length})
+      {/* Two-panel layout */}
+      <div className="chat-panel">
+
+        {/* Left sidebar — class list */}
+        <div className="chat-sidebar">
+          <div className="chat-sidebar__header">Classes</div>
+          <div className="chat-sidebar__list">
+            {loading ? (
+              <div style={{ padding: '16px 14px', fontSize: '0.8rem', color: '#9CA3AF' }}>Loading…</div>
+            ) : classes.length === 0 ? (
+              <div style={{ padding: '16px 14px', fontSize: '0.8rem', color: '#9CA3AF' }}>No classes found.</div>
+            ) : (
+              classes.map(cls => {
+                const isActive = cls.id === selectedClassId
+                return (
+                  <div
+                    key={cls.id}
+                    className={`chat-sidebar__item ${isActive ? 'chat-sidebar__item--active' : ''}`}
+                    onClick={() => setSelectedClassId(cls.id)}
+                  >
+                    <div className="chat-sidebar__name">{cls.name}</div>
+                    <div className="chat-sidebar__preview">{cls.productName}</div>
+                  </div>
+                )
+              })
+            )}
           </div>
-          {loading ? (
-            <div style={{ padding: '1rem', color: '#6B7280', fontSize: '0.83rem' }}>Loading classes…</div>
-          ) : classes.length === 0 ? (
-            <div style={{ padding: '1rem', color: '#6B7280', fontSize: '0.83rem' }}>No classes found.</div>
-          ) : (
-            classes.map(cls => (
-              <div
-                key={cls.id}
-                className={`editor-chat-class-item ${selectedClassId === cls.id ? 'editor-chat-class-item--active' : ''}`}
-                onClick={() => setSelectedClassId(cls.id)}
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span>{cls.name}</span>
-                  <span style={{ fontSize: '0.68rem', color: '#9ca3af', background: '#f3f4f6', padding: '1px 5px', borderRadius: 4 }}>
-                    mock
-                  </span>
-                </div>
-                <div style={{ fontSize: '0.73rem', color: '#6B7280', marginTop: 1 }}>
-                  {cls.productName}
-                </div>
-              </div>
-            ))
-          )}
         </div>
 
-        {/* Main */}
-        <div className="editor-chat-main">
+        {/* Right — chat thread */}
+        <div className="chat-main">
           {!selectedClass ? (
-            <div className="editor-chat-placeholder">
-              <MessageSquare size={36} style={{ opacity: 0.3, marginBottom: 8 }} />
-              <p style={{ fontWeight: 600, margin: 0 }}>Select a class to view its conversations</p>
-              <p style={{ fontSize: '0.8rem', margin: '4px 0 0' }}>
-                Choose a class from the sidebar to begin supervision.
-              </p>
+            <div className="chat-empty" style={{ flex: 1 }}>
+              <MessageSquare size={32} style={{ opacity: 0.25 }} />
+              <p>Select a class to view its group chat</p>
             </div>
           ) : (
             <>
-              {/* Class header */}
-              <div style={{ marginBottom: 12 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 8 }}>
-                  <div>
-                    <h2 style={{ fontSize: '0.95rem', fontWeight: 800, color: '#1E1B4B', margin: 0 }}>
-                      Supervision — {selectedClass.name}
-                    </h2>
-                    <p style={{ fontSize: '0.78rem', color: '#6B7280', margin: '3px 0 0' }}>
-                      Teacher: {selectedClass.teacherName} · {selectedClass.enrolledStudentIds.length} students
-                    </p>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 5, background: '#EEF2FF', border: '1px solid #bae6fd', borderRadius: 8, padding: '4px 10px' }}>
-                    <Eye size={12} style={{ color: '#3730A3' }} />
-                    <span style={{ fontSize: '0.72rem', color: '#3730A3', fontWeight: 600 }}>Privacy Protected</span>
+              <div className="chat-main__header">
+                <div>
+                  <div className="chat-main__name">{selectedClass.name} — Group Chat</div>
+                  <div className="chat-main__class" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <Users size={11} /> All students and teacher · {selectedClass.productName}
                   </div>
                 </div>
-
-                <div className="editor-supervision-note" style={{ marginTop: 10 }}>
-                  <strong>Supervision Policy:</strong> All conversations are supervised in real-time.
-                  Students and teachers are informed of this policy at enrollment.
+                <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 10px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, fontSize: '0.72rem', fontWeight: 600, color: '#dc2626' }}>
+                  <Eye size={11} /> Editor View
                 </div>
               </div>
 
-              {/* Messages */}
-              <div className="editor-chat-messages" style={{ flex: 1, minHeight: 240 }}>
-                {messages.map(msg => (
-                  <div key={msg.id} className="editor-chat-message">
-                    <div
-                      className={`editor-chat-message__avatar editor-chat-message__avatar--${msg.sender}`}
-                    >
-                      {msg.name.charAt(0)}
-                    </div>
-                    <div className="editor-chat-message__bubble">
-                      <div className="editor-chat-message__sender">
-                        {msg.name}
-                        <span style={{ fontWeight: 400, marginLeft: 6, color: '#9ca3af' }}>
-                          {msg.time}
-                        </span>
-                        <span
-                          style={{
-                            marginLeft: 6,
-                            fontSize: '0.68rem',
-                            background: msg.sender === 'teacher' ? '#dcfce7' : '#EEF2FF',
-                            color: msg.sender === 'teacher' ? '#15803d' : '#3730A3',
-                            padding: '1px 5px',
-                            borderRadius: 4,
-                          }}
-                        >
-                          {msg.sender}
-                        </span>
+              <div className="chat-messages">
+                {loadingMsgs ? (
+                  <div className="chat-empty">
+                    <p style={{ color: '#9CA3AF' }}>Loading messages…</p>
+                  </div>
+                ) : messages.length === 0 ? (
+                  <div className="chat-empty">
+                    <Users size={28} style={{ opacity: 0.2 }} />
+                    <p>No messages in this group chat yet.</p>
+                  </div>
+                ) : (
+                  messages.map((msg, idx) => {
+                    const isTeacher = msg.senderRole === 'teacher'
+                    const showDate = idx === 0 || !isSameDay(messages[idx - 1].sentAt, msg.sentAt)
+                    const showName = idx === 0 || messages[idx - 1].senderId !== msg.senderId
+
+                    return (
+                      <div key={msg.id}>
+                        {showDate && (
+                          <div style={{ textAlign: 'center', margin: '0.75rem 0', fontSize: '0.72rem', color: '#9CA3AF', fontWeight: 600 }}>
+                            {formatDate(msg.sentAt)}
+                          </div>
+                        )}
+                        <div className="chat-message chat-message--left" style={{ alignItems: 'flex-start' }}>
+                          <div className={`chat-message__avatar ${isTeacher ? 'chat-message__avatar--teacher' : 'chat-message__avatar--student'}`}>
+                            {msg.senderName[0]?.toUpperCase()}
+                          </div>
+                          <div className="chat-message__body" style={{ flex: 1 }}>
+                            {showName && (
+                              <div style={{ fontSize: '0.72rem', fontWeight: 700, color: isTeacher ? '#4F46E5' : '#374151', marginBottom: 2 }}>
+                                {isTeacher ? `${msg.senderName} (Teacher)` : msg.senderName}
+                              </div>
+                            )}
+                            <div className="chat-message__bubble">{msg.text}</div>
+                            <div className="chat-message__meta">{formatTime(msg.sentAt)}</div>
+                          </div>
+                        </div>
                       </div>
-                      <div className="editor-chat-message__text">{msg.text}</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Read-only note */}
-              <div className="editor-chat-readonly-note">
-                Read-only supervision view. No input available.
-              </div>
-
-              {/* Backend placeholder */}
-              <div
-                style={{
-                  marginTop: 10,
-                  background: '#f9fafb',
-                  border: '1px dashed #d1d5db',
-                  borderRadius: 8,
-                  padding: '8px 12px',
-                  fontSize: '0.78rem',
-                  color: '#9ca3af',
-                  textAlign: 'center',
-                }}
-              >
-                Live supervision activates when chat backend is connected.
+                    )
+                  })
+                )}
+                <div ref={bottomRef} />
               </div>
             </>
           )}

@@ -1,15 +1,9 @@
 import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { Users, Clock, Video, MessageCircle, FileText, BarChart2, Check, Tag, ArrowRight } from 'lucide-react'
-import { adminGetProducts, getTeacherById, validateCoupon } from '../../services/lmsApi'
-import type { Product, Teacher } from '../../types/lms'
+import { getProgramById, validateCoupon } from '../../services/lmsApi'
+import type { ProgramDetail } from '../../services/lmsApi'
 import '../../styles/payment.css'
-
-const MOCK_SCHEDULE = [
-  { day: 'Tuesday', time: '7:00 PM EST', topic: 'Biochemistry & Molecular Biology' },
-  { day: 'Thursday', time: '7:00 PM EST', topic: 'Physiology & Pathology' },
-  { day: 'Saturday', time: '10:00 AM EST', topic: 'Clinical Pharmacology' },
-]
 
 const INCLUDED = [
   { icon: Video, label: 'Live group sessions (twice weekly)' },
@@ -21,26 +15,20 @@ const INCLUDED = [
 
 export default function ProductDetailPage() {
   const { productId } = useParams<{ productId: string }>()
-  const [product, setProduct] = useState<Product | null>(null)
-  const [teacher, setTeacher] = useState<Teacher | null>(null)
+  const [program, setProgram] = useState<ProgramDetail | null>(null)
   const [plan, setPlan] = useState<'upfront' | 'installment'>('upfront')
   const [couponCode, setCouponCode] = useState('')
   const [couponDiscount, setCouponDiscount] = useState<{ value: number; type: 'percentage' | 'fixed' } | null>(null)
   const [couponError, setCouponError] = useState('')
 
   useEffect(() => {
-    adminGetProducts().then(products => {
-      const p = products.find(p => p.id === productId) ?? products[0]
-      if (!p) return
-      setProduct(p)
-      // Get teacher from first class (mock — use teacher-001)
-      getTeacherById('teacher-001').then(setTeacher)
-    })
+    if (!productId) return
+    getProgramById(productId).then(p => { if (p) setProgram(p) })
   }, [productId])
 
-  if (!product) return <div style={{ padding: '2rem 20px', color: '#6B7280' }}>Loading…</div>
+  if (!program) return <div style={{ padding: '2rem 20px', color: '#6B7280' }}>Loading…</div>
 
-  const basePrice = plan === 'upfront' ? product.upfrontPrice : product.installmentAmount
+  const basePrice = plan === 'upfront' ? program.upfrontPrice : program.installmentAmount
   let discount = 0
   if (couponDiscount) {
     discount = couponDiscount.type === 'percentage'
@@ -52,7 +40,7 @@ export default function ProductDetailPage() {
   async function handleApplyCoupon() {
     setCouponError('')
     setCouponDiscount(null)
-    const result = await validateCoupon(couponCode, product!.id)
+    const result = await validateCoupon(couponCode, program!.productId)
     if (result.valid) {
       setCouponDiscount({ value: result.discount, type: result.type })
     } else {
@@ -60,27 +48,29 @@ export default function ProductDetailPage() {
     }
   }
 
+  const upcomingSessions = program.sessions.filter(s => s.status === 'scheduled').slice(0, 5)
+
   return (
     <div className="product-detail-page">
       {/* Hero */}
       <div className="product-hero">
-        <h1>{product.name}</h1>
-        <p>{product.description}</p>
-        {teacher && (
+        <h1>{program.name}</h1>
+        <p>{program.description}</p>
+        {program.teacherName && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
             <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700 }}>
-              {teacher.name[0]}
+              {program.teacherName[0]}
             </div>
             <div>
-              <div style={{ fontWeight: 700 }}>Taught by {teacher.name}</div>
-              <div style={{ fontSize: '0.78rem', opacity: 0.8 }}>{teacher.bio.slice(0, 80)}…</div>
+              <div style={{ fontWeight: 700 }}>Taught by {program.teacherName}</div>
+              {program.teacherBio && <div style={{ fontSize: '0.78rem', opacity: 0.8 }}>{program.teacherBio.slice(0, 80)}…</div>}
             </div>
           </div>
         )}
         <div className="product-hero-stats">
-          <div className="product-hero-stat"><Users size={14} /> 47 students enrolled</div>
-          <div className="product-hero-stat"><Video size={14} /> 2 sessions/week</div>
-          <div className="product-hero-stat"><Clock size={14} /> {product.classIds.length > 0 ? 90 : product.installmentMonths * 8} min avg</div>
+          <div className="product-hero-stat"><Users size={14} /> {program.enrolledCount} students enrolled</div>
+          <div className="product-hero-stat"><Video size={14} /> {program.sessionCount} sessions total</div>
+          <div className="product-hero-stat"><Clock size={14} /> 90 min avg</div>
         </div>
       </div>
 
@@ -97,13 +87,13 @@ export default function ProductDetailPage() {
         <div className="pricing-option-card">
           {plan === 'upfront' ? (
             <>
-              <p className="pricing-option-card__price">${couponDiscount ? finalPrice : product.upfrontPrice} <span>one-time payment</span></p>
+              <p className="pricing-option-card__price">${couponDiscount ? finalPrice : program.upfrontPrice} <span>one-time payment</span></p>
               {couponDiscount && <p style={{ fontSize: '0.78rem', color: '#16a34a', margin: '4px 0 0' }}>Save ${discount} with coupon!</p>}
             </>
           ) : (
             <>
-              <p className="pricing-option-card__price">${couponDiscount ? finalPrice : product.installmentAmount} <span>/month</span></p>
-              <p className="pricing-option-card__note">× {product.installmentMonths} months = ${product.installmentAmount * product.installmentMonths} total</p>
+              <p className="pricing-option-card__price">${couponDiscount ? finalPrice : program.installmentAmount} <span>/month</span></p>
+              <p className="pricing-option-card__note">× {program.installmentMonths} months = ${program.installmentAmount * program.installmentMonths} total</p>
             </>
           )}
         </div>
@@ -116,7 +106,7 @@ export default function ProductDetailPage() {
         {couponError && <div className="coupon-error">{couponError}</div>}
 
         <div className="product-pricing-actions">
-          <Link to={`/student/checkout/${product.id}`} className="product-enroll-btn">
+          <Link to={`/student/checkout/${program.productId}`} className="product-enroll-btn">
             Enroll Now <ArrowRight size={15} />
           </Link>
         </div>
@@ -137,24 +127,29 @@ export default function ProductDetailPage() {
         </div>
       </div>
 
-      {/* Schedule preview */}
-      <div style={{ background: '#fff', border: '1px solid #E0E7FF', borderRadius: 14, padding: '20px 22px' }}>
-        <h2 style={{ fontSize: '1rem', fontWeight: 800, color: '#1E1B4B', margin: '0 0 14px' }}>Upcoming Sessions</h2>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {MOCK_SCHEDULE.map((s, idx) => (
-            <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '10px 14px', background: '#F9FAFB', border: '1px solid #EEF2FF', borderRadius: 10 }}>
-              <div style={{ width: 44, textAlign: 'center' }}>
-                <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#3730A3', textTransform: 'uppercase' }}>{s.day.slice(0, 3)}</div>
-                <div style={{ fontSize: '0.78rem', color: '#6B7280' }}>{s.time.split(' ')[0]}</div>
-              </div>
-              <div>
-                <div style={{ fontWeight: 600, color: '#1E1B4B', fontSize: '0.87rem' }}>{s.topic}</div>
-                <div style={{ fontSize: '0.75rem', color: '#6B7280' }}>{s.time}</div>
-              </div>
-            </div>
-          ))}
+      {/* Upcoming sessions from real data */}
+      {upcomingSessions.length > 0 && (
+        <div style={{ background: '#fff', border: '1px solid #E0E7FF', borderRadius: 14, padding: '20px 22px' }}>
+          <h2 style={{ fontSize: '1rem', fontWeight: 800, color: '#1E1B4B', margin: '0 0 14px' }}>Upcoming Sessions</h2>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {upcomingSessions.map(s => {
+              const d = new Date(s.scheduledAt)
+              return (
+                <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '10px 14px', background: '#F9FAFB', border: '1px solid #EEF2FF', borderRadius: 10 }}>
+                  <div style={{ width: 44, textAlign: 'center' }}>
+                    <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#3730A3', textTransform: 'uppercase' }}>{d.toLocaleDateString('en-US', { weekday: 'short' })}</div>
+                    <div style={{ fontSize: '0.78rem', color: '#6B7280' }}>{d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</div>
+                  </div>
+                  <div>
+                    <div style={{ fontWeight: 600, color: '#1E1B4B', fontSize: '0.87rem' }}>{d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</div>
+                    <div style={{ fontSize: '0.75rem', color: '#6B7280' }}>{s.durationMinutes} min session</div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   )
 }

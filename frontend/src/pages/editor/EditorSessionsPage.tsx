@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react'
 import {
-  adminGetAllSessions,
-  getAllClassesWithProducts,
-  adminUpdateSession,
-  adminCancelSession,
-  adminGetProducts,
+  editorGetSessions,
+  editorGetClassesWithProducts,
+  editorUpdateSession,
+  editorCancelSession,
+  editorGetProducts,
   generateMeetingLink,
 } from '../../services/lmsApi'
 import type { SessionWithClass, ClassWithProduct, Product } from '../../types/lms'
@@ -76,9 +76,9 @@ export default function EditorSessionsPage() {
   useEffect(() => {
     async function load() {
       const [s, c, p] = await Promise.all([
-        adminGetAllSessions(),
-        getAllClassesWithProducts(),
-        adminGetProducts(),
+        editorGetSessions(),
+        editorGetClassesWithProducts(),
+        editorGetProducts(),
       ])
       setSessions(s)
       setClasses(c)
@@ -118,7 +118,7 @@ export default function EditorSessionsPage() {
     setEditSubmitting(true)
     try {
       const scheduledAt = new Date(`${editDate}T${editTime}:00`).toISOString()
-      const updated = await adminUpdateSession(editSession.id, {
+      const updated = await editorUpdateSession(editSession.id, {
         classId: editSession.classId,
         scheduledAt,
         durationMinutes: editDuration,
@@ -142,7 +142,7 @@ export default function EditorSessionsPage() {
   }
 
   async function handleCancel(sessionId: string) {
-    await adminCancelSession(sessionId)
+    await editorCancelSession(sessionId)
     setSessions(prev => prev.map(s => s.id === sessionId ? { ...s, status: 'cancelled' } : s))
     setCancelConfirmId(null)
     showToast('Session cancelled')

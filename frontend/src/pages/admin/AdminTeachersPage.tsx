@@ -4,7 +4,6 @@ import {
   adminApproveTeacher,
   adminRejectTeacher,
   adminReinstateTeacher,
-  adminCreateEditor,
 } from '../../services/lmsApi'
 import type { Teacher } from '../../types/lms'
 import '../../styles/admin/admin-teachers.css'
@@ -12,7 +11,6 @@ import {
   Users,
   CheckCircle2,
   X,
-  UserPlus,
   Clock,
   XCircle,
 } from 'lucide-react'
@@ -41,15 +39,6 @@ export default function AdminTeachersPage() {
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<TeacherFilter>('all')
   const [toast, setToast] = useState<string | null>(null)
-
-  // Create editor modal
-  const [showEditorModal, setShowEditorModal] = useState(false)
-  const [editorName, setEditorName] = useState('')
-  const [editorEmail, setEditorEmail] = useState('')
-  const [editorPassword, setEditorPassword] = useState('')
-  const [editorError, setEditorError] = useState('')
-  const [editorSubmitting, setEditorSubmitting] = useState(false)
-  const [editorSuccess, setEditorSuccess] = useState<{ name: string; email: string; password: string } | null>(null)
 
   useEffect(() => {
     adminGetTeachers().then(t => {
@@ -87,29 +76,6 @@ export default function AdminTeachersPage() {
     showToast(`${updated.name} suspended`)
   }
 
-  async function handleCreateEditor() {
-    if (!editorName.trim()) { setEditorError('Name is required.'); return }
-    if (!editorEmail.trim()) { setEditorError('Email is required.'); return }
-    if (!editorPassword.trim() || editorPassword.length < 6) { setEditorError('Password must be at least 6 characters.'); return }
-    setEditorError('')
-    setEditorSubmitting(true)
-    try {
-      await adminCreateEditor({
-        name: editorName.trim(),
-        email: editorEmail.trim().toLowerCase(),
-        password: editorPassword,
-      })
-      setEditorSuccess({ name: editorName.trim(), email: editorEmail.trim().toLowerCase(), password: editorPassword })
-      setEditorName('')
-      setEditorEmail('')
-      setEditorPassword('')
-    } catch (err) {
-      setEditorError(err instanceof Error ? err.message : 'Failed to create editor.')
-    } finally {
-      setEditorSubmitting(false)
-    }
-  }
-
   const totals = {
     all: teachers.length,
     pending: teachers.filter(t => t.status === 'pending').length,
@@ -129,28 +95,9 @@ export default function AdminTeachersPage() {
               Teacher Management
             </h1>
             <p style={{ fontSize: '0.85rem', color: '#6B7280', margin: '4px 0 0' }}>
-              Approve, manage, and create accounts for teachers and editors.
+              Approve, manage, and monitor teacher accounts.
             </p>
           </div>
-          <button
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 6,
-              padding: '8px 14px',
-              background: '#3730A3',
-              color: '#fff',
-              border: 'none',
-              borderRadius: 8,
-              fontWeight: 600,
-              fontSize: '0.83rem',
-              cursor: 'pointer',
-            }}
-            onClick={() => { setShowEditorModal(true); setEditorSuccess(null) }}
-          >
-            <UserPlus size={14} />
-            Create Editor
-          </button>
         </div>
       </div>
 
@@ -290,111 +237,6 @@ export default function AdminTeachersPage() {
           </div>
         )}
       </div>
-
-      {/* Create Editor Modal */}
-      {showEditorModal && (
-        <div className="admin-teachers-modal-overlay" onClick={e => { if (e.target === e.currentTarget) { setShowEditorModal(false); setEditorSuccess(null) } }}>
-          <div className="admin-teachers-modal">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h2 className="admin-teachers-modal__title">Create Editor Account</h2>
-              <button
-                style={{ background: 'transparent', border: '1px solid #e8f0fb', borderRadius: 7, padding: '4px 8px', cursor: 'pointer', color: '#6B7280' }}
-                onClick={() => { setShowEditorModal(false); setEditorSuccess(null) }}
-              >
-                <X size={16} />
-              </button>
-            </div>
-
-            {editorSuccess ? (
-              <div style={{ display: 'grid', gap: 12 }}>
-                <div style={{ background: '#dcfce7', border: '1px solid #bbf7d0', borderRadius: 10, padding: '12px 14px' }}>
-                  <p style={{ fontWeight: 700, color: '#15803d', margin: '0 0 6px', fontSize: '0.9rem' }}>
-                    Editor account created successfully ✓
-                  </p>
-                  <p style={{ fontSize: '0.83rem', color: '#166534', margin: 0 }}>
-                    Share these credentials securely with the editor:
-                  </p>
-                </div>
-                <div style={{ background: '#F9FAFB', border: '1px solid #E0E7FF', borderRadius: 10, padding: 12, fontFamily: 'monospace', fontSize: '0.85rem', color: '#1E1B4B', display: 'grid', gap: 4 }}>
-                  <div><strong>Name:</strong> {editorSuccess.name}</div>
-                  <div><strong>Email:</strong> {editorSuccess.email}</div>
-                  <div><strong>Password:</strong> {editorSuccess.password}</div>
-                </div>
-                <p style={{ fontSize: '0.78rem', color: '#6B7280', margin: 0 }}>
-                  Make sure to share these credentials through a secure channel. The password cannot be retrieved after this dialog is closed.
-                </p>
-                <button
-                  style={{ padding: '8px 14px', background: '#3730A3', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 600, cursor: 'pointer' }}
-                  onClick={() => { setShowEditorModal(false); setEditorSuccess(null) }}
-                >
-                  Done
-                </button>
-              </div>
-            ) : (
-              <div style={{ display: 'grid', gap: 14 }}>
-                <p style={{ fontSize: '0.83rem', color: '#6B7280', margin: 0 }}>
-                  Create an editor account. The editor can sign in at /editor/login.
-                </p>
-                <div style={{ display: 'grid', gap: 6 }}>
-                  <label style={{ fontSize: '0.83rem', fontWeight: 600, color: '#3730A3' }}>Full Name *</label>
-                  <input
-                    style={{ border: '1.5px solid #C7D2FE', borderRadius: 10, padding: '8px 12px', fontSize: '0.9rem', color: '#1E1B4B', background: '#F9FAFB', outline: 'none', fontFamily: 'inherit' }}
-                    placeholder="e.g. Ali Hassan"
-                    value={editorName}
-                    onChange={e => setEditorName(e.target.value)}
-                  />
-                </div>
-                <div style={{ display: 'grid', gap: 6 }}>
-                  <label style={{ fontSize: '0.83rem', fontWeight: 600, color: '#3730A3' }}>Email *</label>
-                  <input
-                    style={{ border: '1.5px solid #C7D2FE', borderRadius: 10, padding: '8px 12px', fontSize: '0.9rem', color: '#1E1B4B', background: '#F9FAFB', outline: 'none', fontFamily: 'inherit' }}
-                    type="email"
-                    placeholder="editor@example.com"
-                    value={editorEmail}
-                    onChange={e => setEditorEmail(e.target.value)}
-                  />
-                </div>
-                <div style={{ display: 'grid', gap: 6 }}>
-                  <label style={{ fontSize: '0.83rem', fontWeight: 600, color: '#3730A3' }}>Password *</label>
-                  <input
-                    style={{ border: '1.5px solid #C7D2FE', borderRadius: 10, padding: '8px 12px', fontSize: '0.9rem', color: '#1E1B4B', background: '#F9FAFB', outline: 'none', fontFamily: 'inherit' }}
-                    type="text"
-                    placeholder="Minimum 6 characters"
-                    value={editorPassword}
-                    onChange={e => setEditorPassword(e.target.value)}
-                  />
-                  <span style={{ fontSize: '0.75rem', color: '#6B7280' }}>
-                    You'll be shown these credentials once after creation.
-                  </span>
-                </div>
-
-                {editorError && (
-                  <div style={{ fontSize: '0.82rem', color: '#dc2626', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '6px 10px' }}>
-                    {editorError}
-                  </div>
-                )}
-
-                <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-                  <button
-                    style={{ padding: '7px 14px', background: 'transparent', border: '1px solid #e8f0fb', borderRadius: 8, fontWeight: 600, fontSize: '0.83rem', cursor: 'pointer', color: '#6B7280' }}
-                    onClick={() => setShowEditorModal(false)}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 14px', background: '#3730A3', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 600, fontSize: '0.83rem', cursor: 'pointer' }}
-                    onClick={handleCreateEditor}
-                    disabled={editorSubmitting}
-                  >
-                    <UserPlus size={14} />
-                    {editorSubmitting ? 'Creating…' : 'Create Editor'}
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
 
       {toast && <div className="admin-teachers-toast">{toast}</div>}
     </div>

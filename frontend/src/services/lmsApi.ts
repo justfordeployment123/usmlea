@@ -1,29 +1,10 @@
 /**
- * LMS API service — all data access for the Online Sessions LMS goes through here.
- *
- * Currently: reads/writes mock data from src/data/lms.ts
- * BACKEND SWAP: Replace each function body with a real API call via apiRequest().
- * The function signatures, parameter shapes, and return types stay identical.
- * Nothing else in the codebase needs to change.
- *
- * Endpoint mapping is noted above each function.
+ * LMS API service — all LMS data access goes through here.
+ * Calls the real Express/Supabase backend via apiRequest().
+ * Function signatures and return types are preserved from the mock layer.
  */
 
-import {
-  getTeachers, saveTeachers, getTeacherPassword, setTeacherPassword,
-  getEditors, saveEditors, getEditorPassword, setEditorPassword,
-  getProducts, saveProducts,
-  getClasses, saveClasses,
-  getSessions, saveSessions,
-  getNotices, saveNotices,
-  getDemoOverrides, saveDemoOverrides,
-  getChatMessages, saveChatMessages,
-  getCoupons, saveCoupons,
-  getLmsNotifications, saveLmsNotifications,
-  getEnrollments, saveEnrollments,
-  getNotificationPrefs as _getNotificationPrefs,
-  saveNotificationPrefs as _saveNotificationPrefs,
-} from '../data/lms'
+import { apiRequest } from './httpClient'
 
 import type {
   Teacher, Editor, Product, LmsClass, LmsSession, Notice, DemoOverride,
@@ -31,9 +12,79 @@ import type {
   CreateSessionPayload, UpdateSessionPayload, CreateNoticePayload,
   SessionWithClass, ClassWithProduct,
   ChatMessage, AttendanceRecord, RecordedSession, Coupon,
-  NotificationPrefs, LmsNotification, TeacherAnalytics, SessionAnalytics,
+  NotificationPrefs, LmsNotification, TeacherAnalytics,
   CreateCouponPayload, CreateClassPayload, EnrollStudentPayload, StudentEnrollment,
 } from '../types/lms'
+
+// ─── Token helpers ────────────────────────────────────────────────────────────
+interface StoredSession { accessToken: string; refreshToken: string; expiresAt: number }
+
+function getTokenFor(lsKey: string): string {
+  try {
+    const raw = localStorage.getItem(lsKey)
+    if (!raw) return ''
+    const parsed = JSON.parse(raw) as { session?: StoredSession }
+    return parsed?.session?.accessToken ?? ''
+  } catch { return '' }
+}
+
+function getRefreshTokenFor(lsKey: string): string {
+  try {
+    const raw = localStorage.getItem(lsKey)
+    if (!raw) return ''
+    const parsed = JSON.parse(raw) as { session?: StoredSession }
+    return parsed?.session?.refreshToken ?? ''
+  } catch { return '' }
+}
+
+function decodeJwtExp(token: string): number {
+  try {
+    return JSON.parse(atob(token.split('.')[1])).exp ?? 0
+  } catch { return 0 }
+}
+
+export function isSessionExpired(lsKey: string): boolean {
+  try {
+    const raw = localStorage.getItem(lsKey)
+    if (!raw) return true
+    const parsed = JSON.parse(raw) as { session?: { accessToken?: string; expiresAt?: number } }
+    const token = parsed?.session?.accessToken
+    if (!token) return true
+    const exp = decodeJwtExp(token)
+    return exp === 0 || Date.now() / 1000 > exp - 60
+  } catch { return true }
+}
+
+export function storeSession(lsKey: string, accessToken: string, refreshToken: string, expiresIn: number) {
+  try {
+    const raw = localStorage.getItem(lsKey)
+    const existing = raw ? JSON.parse(raw) : {}
+    const session: StoredSession = { accessToken, refreshToken, expiresAt: Math.floor(Date.now() / 1000) + expiresIn }
+    localStorage.setItem(lsKey, JSON.stringify({ ...existing, session }))
+  } catch { /* ignore */ }
+}
+
+export async function refreshSession(lsKey: string): Promise<string | null> {
+  const refreshToken = getRefreshTokenFor(lsKey)
+  if (!refreshToken) return null
+  try {
+    const res = await apiRequest<{ session: { access_token: string; refresh_token: string; expires_in: number } }>(
+      '/auth/refresh',
+      { method: 'POST', body: { refreshToken } },
+    )
+    storeSession(lsKey, res.session.access_token, res.session.refresh_token, res.session.expires_in)
+    return res.session.access_token
+  } catch { return null }
+}
+
+const getStudentToken  = () => getTokenFor('nextgen.student.auth')
+const getAdminToken    = () => getTokenFor('nextgen.admin.auth')
+const getTeacherToken  = () => getTokenFor('nextgen.teacher.auth')
+export const getEditorToken   = () => getTokenFor('nextgen.editor.auth')
+
+function bearer(token: string): { headers: Record<string, string> } {
+  return { headers: { Authorization: `Bearer ${token}` } }
+}
 
 // ─── Auth ─────────────────────────────────────────────────────────────────────
 
@@ -42,42 +93,21 @@ export interface TeacherLoginResponse {
   accessToken: string
 }
 
-export async function registerTeacher(payload: RegisterTeacherPayload): Promise<Teacher> {
-  // BACKEND SWAP: POST /api/v1/auth/teacher/register
-  const teachers = getTeachers()
-  const emailExists = teachers.some(t => t.email.toLowerCase() === payload.email.toLowerCase())
-  if (emailExists) throw new Error('An account with this email already exists.')
-
-  const newTeacher: Teacher = {
-    id: `teacher-${Date.now()}`,
-    name: payload.name.trim(),
-    email: payload.email.trim().toLowerCase(),
-    phone: payload.phone.trim(),
-    bio: payload.bio.trim(),
-    profilePicture: payload.profilePicture,
-    status: 'pending',
-    registeredAt: new Date().toISOString(),
-    assignedClassIds: [],
-  }
-
-  saveTeachers([...teachers, newTeacher])
-  setTeacherPassword(newTeacher.id, payload.password)
-  return newTeacher
+export async function registerTeacher(payload: RegisterTeacherPayload): Promise<TeacherLoginResponse> {
+  const res = await apiRequest<{ teacher: Teacher }>('/auth/teacher/register', {
+    method: 'POST',
+    body: { name: payload.name, email: payload.email, password: payload.password, phone: payload.phone, bio: payload.bio },
+  })
+  return { teacher: res.teacher, accessToken: '' }
 }
 
 export async function loginTeacher(email: string, password: string): Promise<TeacherLoginResponse> {
-  // BACKEND SWAP: POST /api/v1/auth/teacher/login
-  const teachers = getTeachers()
-  const teacher = teachers.find(t => t.email.toLowerCase() === email.toLowerCase())
-  if (!teacher) throw new Error('Invalid email or password.')
-
-  const storedPassword = getTeacherPassword(teacher.id)
-  if (storedPassword !== password) throw new Error('Invalid email or password.')
-
-  return {
-    teacher,
-    accessToken: `mock-teacher-token-${teacher.id}`,
-  }
+  const res = await apiRequest<{ teacher: Teacher; session: { access_token: string; refresh_token: string; expires_in: number } }>(
+    '/auth/teacher/login',
+    { method: 'POST', body: { email, password } },
+  )
+  storeSession('nextgen.teacher.auth', res.session.access_token, res.session.refresh_token, res.session.expires_in)
+  return { teacher: res.teacher, accessToken: res.session.access_token }
 }
 
 export interface EditorLoginResponse {
@@ -86,373 +116,412 @@ export interface EditorLoginResponse {
 }
 
 export async function loginEditor(email: string, password: string): Promise<EditorLoginResponse> {
-  // BACKEND SWAP: POST /api/v1/auth/editor/login
-  const editors = getEditors()
-  const editor = editors.find(e => e.email.toLowerCase() === email.toLowerCase())
-  if (!editor) throw new Error('Invalid email or password.')
-
-  const storedPassword = getEditorPassword(editor.id)
-  if (storedPassword !== password) throw new Error('Invalid email or password.')
-
-  return {
-    editor,
-    accessToken: `mock-editor-token-${editor.id}`,
-  }
+  const res = await apiRequest<{ editor: Editor; session: { access_token: string; refresh_token: string; expires_in: number } }>(
+    '/auth/editor/login',
+    { method: 'POST', body: { email, password } },
+  )
+  storeSession('nextgen.editor.auth', res.session.access_token, res.session.refresh_token, res.session.expires_in)
+  return { editor: res.editor, accessToken: res.session.access_token }
 }
 
 // ─── Teacher queries ──────────────────────────────────────────────────────────
 
 export async function getTeacherById(id: string): Promise<Teacher | null> {
-  // BACKEND SWAP: GET /api/v1/teacher/:id
-  const teachers = getTeachers()
-  return teachers.find(t => t.id === id) ?? null
+  // No dedicated GET /teacher/:id endpoint — read from stored auth data
+  try {
+    const raw = localStorage.getItem('nextgen.teacher.auth')
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as { teacher?: Teacher }
+    if (parsed?.teacher?.id === id) return parsed.teacher
+  } catch { /* ignore */ }
+  return null
 }
 
-export async function getTeacherClasses(teacherId: string): Promise<ClassWithProduct[]> {
-  // BACKEND SWAP: GET /api/v1/teacher/classes
-  const classes = getClasses()
-  const products = getProducts()
-  const sessions = getSessions()
-  const teachers = getTeachers()
-
-  return classes
-    .filter(c => c.teacherId === teacherId)
-    .map(c => {
-      const product = products.find(p => p.id === c.productId)
-      const teacher = teachers.find(t => t.id === c.teacherId)
-      const classSessions = sessions
-        .filter(s => s.classId === c.id && (s.status === 'scheduled' || s.status === 'live'))
-        .sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime())
-
-      return {
-        ...c,
-        productName: product?.name ?? 'Unknown Product',
-        teacherName: teacher?.name ?? 'Unknown Teacher',
-        nextSession: classSessions[0],
-      }
-    })
+export async function getTeacherClasses(_teacherId: string): Promise<ClassWithProduct[]> {
+  // GET /api/v1/teacher/classes
+  const res = await apiRequest<{ classes: (ClassWithProduct & { enrolledStudentCount?: number })[] }>(
+    '/teacher/classes',
+    bearer(getTeacherToken()),
+  )
+  return res.classes.map(c => ({
+    ...c,
+    enrolledStudentIds: [],
+  }))
 }
 
 export async function getTeacherSessions(classId: string): Promise<LmsSession[]> {
-  // BACKEND SWAP: GET /api/v1/teacher/classes/:classId/sessions
-  const sessions = getSessions()
-  return sessions
-    .filter(s => s.classId === classId)
-    .sort((a, b) => new Date(b.scheduledAt).getTime() - new Date(a.scheduledAt).getTime())
+  // GET /api/v1/teacher/classes/:classId/sessions
+  const res = await apiRequest<{ sessions: LmsSession[] }>(
+    `/teacher/classes/${classId}/sessions`,
+    bearer(getTeacherToken()),
+  )
+  return res.sessions
 }
 
 export async function createSession(payload: CreateSessionPayload): Promise<LmsSession> {
-  // BACKEND SWAP: POST /api/v1/teacher/sessions
-  const sessions = getSessions()
-  const newSession: LmsSession = {
-    id: `session-${Date.now()}`,
-    classId: payload.classId,
-    scheduledAt: payload.scheduledAt,
-    durationMinutes: payload.durationMinutes,
-    status: 'scheduled',
-    meetingLink: payload.meetingLink ?? generateMeetingLink(payload.classId),
-    createdAt: new Date().toISOString(),
-  }
-  saveSessions([...sessions, newSession])
-  return newSession
+  // POST /api/v1/teacher/sessions
+  const res = await apiRequest<{ session: LmsSession }>('/teacher/sessions', {
+    method: 'POST',
+    body: {
+      classId: payload.classId,
+      scheduledAt: payload.scheduledAt,
+      durationMinutes: payload.durationMinutes,
+      notes: payload.notes,
+    },
+    ...bearer(getTeacherToken()),
+  })
+  return res.session
 }
 
 export async function updateSession(id: string, payload: UpdateSessionPayload): Promise<LmsSession> {
-  // BACKEND SWAP: PATCH /api/v1/teacher/sessions/:id
-  const sessions = getSessions()
-  const idx = sessions.findIndex(s => s.id === id)
-  if (idx === -1) throw new Error('Session not found.')
-
-  const updated: LmsSession = {
-    ...sessions[idx],
-    scheduledAt: payload.scheduledAt,
-    durationMinutes: payload.durationMinutes,
-    meetingLink: payload.meetingLink ?? sessions[idx].meetingLink,
-    changeNote: payload.changeNote,
-  }
-  sessions[idx] = updated
-  saveSessions(sessions)
-  return updated
+  // PATCH /api/v1/teacher/sessions/:id
+  const res = await apiRequest<{ session: LmsSession }>(`/teacher/sessions/${id}`, {
+    method: 'PATCH',
+    body: {
+      scheduledAt: payload.scheduledAt,
+      durationMinutes: payload.durationMinutes,
+      notes: payload.notes,
+      changeNote: payload.changeNote,
+    },
+    ...bearer(getTeacherToken()),
+  })
+  return res.session
 }
 
 export async function startSession(id: string): Promise<LmsSession> {
-  // BACKEND SWAP: POST /api/v1/teacher/sessions/:id/start
-  // Backend also fires WhatsApp/Email/Push notifications here
-  const sessions = getSessions()
-  const idx = sessions.findIndex(s => s.id === id)
-  if (idx === -1) throw new Error('Session not found.')
-
-  sessions[idx] = { ...sessions[idx], status: 'live' }
-  saveSessions(sessions)
-  return sessions[idx]
+  // POST /api/v1/teacher/sessions/:id/start
+  const res = await apiRequest<{ session: LmsSession }>(`/teacher/sessions/${id}/start`, {
+    method: 'POST',
+    ...bearer(getTeacherToken()),
+  })
+  return res.session
 }
 
 export async function endSession(id: string): Promise<LmsSession> {
-  // BACKEND SWAP: POST /api/v1/teacher/sessions/:id/end
-  const sessions = getSessions()
-  const idx = sessions.findIndex(s => s.id === id)
-  if (idx === -1) throw new Error('Session not found.')
-
-  const startedAt = new Date(sessions[idx].scheduledAt)
-  const actualMinutes = Math.round((Date.now() - startedAt.getTime()) / 60000)
-
-  sessions[idx] = {
-    ...sessions[idx],
-    status: 'completed',
-    actualDurationMinutes: actualMinutes,
-    recordingUrl: `https://recordings.mock/${id}`,
-  }
-  saveSessions(sessions)
-  return sessions[idx]
+  // POST /api/v1/teacher/sessions/:id/end
+  const res = await apiRequest<{ session: LmsSession }>(`/teacher/sessions/${id}/end`, {
+    method: 'POST',
+    ...bearer(getTeacherToken()),
+  })
+  return res.session
 }
 
-export async function cancelSession(id: string): Promise<void> {
-  // BACKEND SWAP: PATCH /api/v1/teacher/sessions/:id/cancel
-  const sessions = getSessions()
-  const idx = sessions.findIndex(s => s.id === id)
-  if (idx !== -1) {
-    sessions[idx] = { ...sessions[idx], status: 'cancelled' }
-    saveSessions(sessions)
-  }
+export async function cancelSession(id: string, reason?: string): Promise<void> {
+  // PATCH /api/v1/teacher/sessions/:id/cancel
+  await apiRequest(`/teacher/sessions/${id}/cancel`, {
+    method: 'PATCH',
+    body: { reason: reason ?? 'Cancelled by teacher.' },
+    ...bearer(getTeacherToken()),
+  })
 }
 
 export async function markSessionMissed(id: string, reason: string): Promise<LmsSession> {
-  // BACKEND SWAP: PATCH /api/v1/teacher/sessions/:id/missed
-  const sessions = getSessions()
-  const idx = sessions.findIndex(s => s.id === id)
-  if (idx !== -1) {
-    sessions[idx] = { ...sessions[idx], status: 'cancelled', missedReason: reason.trim() }
-    saveSessions(sessions)
-    return sessions[idx]
-  }
-  throw new Error('Session not found')
+  // PATCH /api/v1/teacher/sessions/:id/missed
+  const res = await apiRequest<{ session: LmsSession }>(`/teacher/sessions/${id}/missed`, {
+    method: 'PATCH',
+    body: { reason },
+    ...bearer(getTeacherToken()),
+  })
+  return res.session
 }
 
 // ─── Notice board ─────────────────────────────────────────────────────────────
 
 export async function getNoticesForClass(classId: string): Promise<Notice[]> {
-  // BACKEND SWAP: GET /api/v1/teacher/classes/:classId/notices
-  const notices = getNotices()
-  return notices
-    .filter(n => n.classId === classId)
-    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+  // GET /api/v1/teacher/classes/:classId/notices  (teacher)
+  // or GET /api/v1/student/classes/:classId/notices (student)
+  const teacherToken = getTeacherToken()
+  if (teacherToken) {
+    const res = await apiRequest<{ notices: Notice[] }>(
+      `/teacher/classes/${classId}/notices`,
+      bearer(teacherToken),
+    )
+    return res.notices
+  }
+  const res = await apiRequest<{ notices: Notice[] }>(
+    `/student/classes/${classId}/notices`,
+    bearer(getStudentToken()),
+  )
+  return res.notices
 }
 
-export async function createNotice(teacherId: string, payload: CreateNoticePayload): Promise<Notice> {
-  // BACKEND SWAP: POST /api/v1/teacher/classes/:classId/notices
-  const notices = getNotices()
-  const newNotice: Notice = {
-    id: `notice-${Date.now()}`,
-    classId: payload.classId,
-    teacherId,
-    title: payload.title,
-    content: payload.content,
-    type: payload.type,
-    fileName: payload.fileName,
-    createdAt: new Date().toISOString(),
-  }
-  saveNotices([...notices, newNotice])
-  return newNotice
+export async function createNotice(_teacherId: string, payload: CreateNoticePayload): Promise<Notice> {
+  // POST /api/v1/teacher/notices
+  const res = await apiRequest<{ notice: Notice }>('/teacher/notices', {
+    method: 'POST',
+    body: {
+      classId: payload.classId,
+      title: payload.title,
+      content: payload.content,
+      type: payload.type,
+      fileName: payload.fileName,
+    },
+    ...bearer(getTeacherToken()),
+  })
+  return res.notice
 }
 
 export async function deleteNotice(id: string): Promise<void> {
-  // BACKEND SWAP: DELETE /api/v1/teacher/notices/:id
-  const notices = getNotices()
-  saveNotices(notices.filter(n => n.id !== id))
+  // DELETE /api/v1/teacher/notices/:id
+  await apiRequest(`/teacher/notices/${id}`, {
+    method: 'DELETE',
+    ...bearer(getTeacherToken()),
+  })
 }
 
-// ─── Admin — Teachers ────────────────────────────────────────────────────────
+// ─── Admin — Teachers ─────────────────────────────────────────────────────────
+
+export interface StudentSummary { id: string; name: string; email: string; phone: string; registeredAt: string }
+
+export async function adminGetStudents(): Promise<StudentSummary[]> {
+  const res = await apiRequest<{ students: StudentSummary[] }>('/admin/students', bearer(getAdminToken()))
+  return res.students
+}
 
 export async function adminGetTeachers(): Promise<Teacher[]> {
-  // BACKEND SWAP: GET /api/v1/admin/teachers
-  return getTeachers()
+  // GET /api/v1/admin/teachers
+  const res = await apiRequest<{ teachers: Teacher[] }>('/admin/teachers', bearer(getAdminToken()))
+  return res.teachers
 }
 
 export async function adminApproveTeacher(id: string): Promise<Teacher> {
-  // BACKEND SWAP: PATCH /api/v1/admin/teachers/:id/approve
-  const teachers = getTeachers()
-  const idx = teachers.findIndex(t => t.id === id)
-  if (idx === -1) throw new Error('Teacher not found.')
-  teachers[idx] = { ...teachers[idx], status: 'approved' }
-  saveTeachers(teachers)
-  return teachers[idx]
+  // PATCH /api/v1/admin/teachers/:id/approve
+  await apiRequest(`/admin/teachers/${id}/approve`, { method: 'PATCH', ...bearer(getAdminToken()) })
+  return (await adminGetTeachers()).find(t => t.id === id) ?? { id } as Teacher
 }
 
 export async function adminRejectTeacher(id: string): Promise<Teacher> {
-  // BACKEND SWAP: PATCH /api/v1/admin/teachers/:id/reject
-  const teachers = getTeachers()
-  const idx = teachers.findIndex(t => t.id === id)
-  if (idx === -1) throw new Error('Teacher not found.')
-  teachers[idx] = { ...teachers[idx], status: 'suspended' }
-  saveTeachers(teachers)
-  return teachers[idx]
+  // PATCH /api/v1/admin/teachers/:id/reject
+  await apiRequest(`/admin/teachers/${id}/reject`, { method: 'PATCH', ...bearer(getAdminToken()) })
+  return (await adminGetTeachers()).find(t => t.id === id) ?? { id } as Teacher
 }
 
 export async function adminReinstateTeacher(id: string): Promise<Teacher> {
-  // BACKEND SWAP: PATCH /api/v1/admin/teachers/:id/reinstate
-  const teachers = getTeachers()
-  const idx = teachers.findIndex(t => t.id === id)
-  if (idx === -1) throw new Error('Teacher not found.')
-  teachers[idx] = { ...teachers[idx], status: 'approved' }
-  saveTeachers(teachers)
-  return teachers[idx]
+  // PATCH /api/v1/admin/teachers/:id/reinstate
+  await apiRequest(`/admin/teachers/${id}/reinstate`, { method: 'PATCH', ...bearer(getAdminToken()) })
+  return (await adminGetTeachers()).find(t => t.id === id) ?? { id } as Teacher
 }
 
 // ─── Admin — Editors ──────────────────────────────────────────────────────────
 
 export async function adminGetEditors(): Promise<Editor[]> {
-  // BACKEND SWAP: GET /api/v1/admin/editors
-  return getEditors()
+  // GET /api/v1/admin/editors
+  const res = await apiRequest<{ editors: Editor[] }>('/admin/editors', bearer(getAdminToken()))
+  return res.editors
 }
 
 export async function adminCreateEditor(payload: CreateEditorPayload): Promise<Editor> {
-  // BACKEND SWAP: POST /api/v1/admin/editors
-  // Backend creates Supabase user with editor role, no email confirmation required
-  const editors = getEditors()
-  const emailExists = editors.some(e => e.email.toLowerCase() === payload.email.toLowerCase())
-  if (emailExists) throw new Error('An editor with this email already exists.')
+  // POST /api/v1/admin/editors
+  const res = await apiRequest<{ editor: Editor }>('/admin/editors', {
+    method: 'POST',
+    body: { name: payload.name, email: payload.email, password: payload.password },
+    ...bearer(getAdminToken()),
+  })
+  return res.editor
+}
 
-  const newEditor: Editor = {
-    id: `editor-${Date.now()}`,
-    name: payload.name.trim(),
-    email: payload.email.trim().toLowerCase(),
-    createdAt: new Date().toISOString(),
-    createdByAdminId: 'admin-001',
-  }
-
-  saveEditors([...editors, newEditor])
-  setEditorPassword(newEditor.id, payload.password)
-  return newEditor
+export async function adminDeleteEditor(id: string): Promise<void> {
+  // DELETE /api/v1/admin/editors/:id
+  await apiRequest<{ success: boolean }>(`/admin/editors/${id}`, {
+    method: 'DELETE',
+    ...bearer(getAdminToken()),
+  })
 }
 
 // ─── Admin — Products ─────────────────────────────────────────────────────────
 
 export async function adminGetProducts(): Promise<Product[]> {
-  // BACKEND SWAP: GET /api/v1/admin/products
-  return getProducts()
+  // GET /api/v1/admin/products
+  const res = await apiRequest<{ products: Product[] }>('/admin/products', bearer(getAdminToken()))
+  return res.products
 }
 
 export async function adminCreateProduct(payload: CreateProductPayload): Promise<Product> {
-  // BACKEND SWAP: POST /api/v1/admin/products
-  const products = getProducts()
-  const newProduct: Product = {
-    id: `product-${Date.now()}`,
-    name: payload.name.trim(),
-    description: payload.description.trim(),
-    upfrontPrice: payload.upfrontPrice,
-    installmentAmount: payload.installmentAmount,
-    installmentMonths: payload.installmentMonths,
-    isActive: payload.isActive,
-    classIds: [],
-    createdAt: new Date().toISOString(),
-  }
-  saveProducts([...products, newProduct])
-  return newProduct
+  // POST /api/v1/admin/products
+  const res = await apiRequest<{ product: Product }>('/admin/products', {
+    method: 'POST',
+    body: payload,
+    ...bearer(getAdminToken()),
+  })
+  return res.product
 }
 
 export async function adminUpdateProduct(id: string, payload: Partial<CreateProductPayload>): Promise<Product> {
-  // BACKEND SWAP: PATCH /api/v1/admin/products/:id
-  const products = getProducts()
-  const idx = products.findIndex(p => p.id === id)
-  if (idx === -1) throw new Error('Product not found.')
-  products[idx] = { ...products[idx], ...payload }
-  saveProducts(products)
-  return products[idx]
+  // PATCH /api/v1/admin/products/:id
+  const res = await apiRequest<{ product: Product }>(`/admin/products/${id}`, {
+    method: 'PATCH',
+    body: payload,
+    ...bearer(getAdminToken()),
+  })
+  return res.product
 }
 
 export async function adminDeleteProduct(id: string): Promise<void> {
-  // BACKEND SWAP: DELETE /api/v1/admin/products/:id
-  const products = getProducts()
-  const product = products.find(p => p.id === id)
-  if (!product) throw new Error('Product not found.')
-  const classes = getClasses()
-  const hasEnrollments = product.classIds.some(classId => {
-    const cls = classes.find(c => c.id === classId)
-    return cls && cls.enrolledStudentIds.length > 0
-  })
-  if (hasEnrollments) throw new Error('Cannot delete a product with enrolled students.')
-  saveProducts(products.filter(p => p.id !== id))
+  // DELETE /api/v1/admin/products/:id
+  await apiRequest(`/admin/products/${id}`, { method: 'DELETE', ...bearer(getAdminToken()) })
 }
 
 // ─── Admin — Sessions (platform-wide) ─────────────────────────────────────────
 
 export async function adminGetAllSessions(): Promise<SessionWithClass[]> {
-  // BACKEND SWAP: GET /api/v1/admin/sessions
-  const sessions = getSessions()
-  const classes = getClasses()
-  const products = getProducts()
-  const teachers = getTeachers()
-
-  return sessions
-    .map(s => {
-      const cls = classes.find(c => c.id === s.classId)
-      const product = cls ? products.find(p => p.id === cls.productId) : undefined
-      const teacher = cls ? teachers.find(t => t.id === cls.teacherId) : undefined
-      return {
-        ...s,
-        className: cls?.name ?? 'Unknown Class',
-        teacherName: teacher?.name ?? 'Unknown Teacher',
-        productName: product?.name ?? 'Unknown Product',
-      }
-    })
-    .sort((a, b) => new Date(b.scheduledAt).getTime() - new Date(a.scheduledAt).getTime())
+  // GET /api/v1/admin/sessions
+  const res = await apiRequest<{ sessions: SessionWithClass[] }>('/admin/sessions', bearer(getAdminToken()))
+  return res.sessions
 }
 
 export async function adminUpdateSession(id: string, payload: UpdateSessionPayload): Promise<LmsSession> {
-  // BACKEND SWAP: PATCH /api/v1/admin/sessions/:id
-  return updateSession(id, payload)
+  // PATCH /api/v1/admin/sessions/:id
+  const res = await apiRequest<{ session: LmsSession }>(`/admin/sessions/${id}`, {
+    method: 'PATCH',
+    body: {
+      scheduledAt: payload.scheduledAt,
+      durationMinutes: payload.durationMinutes,
+      meetingLink: payload.meetingLink,
+      changeNote: payload.changeNote,
+    },
+    ...bearer(getAdminToken()),
+  })
+  return res.session
 }
 
 export async function adminCancelSession(id: string): Promise<void> {
-  // BACKEND SWAP: PATCH /api/v1/admin/sessions/:id/cancel
-  return cancelSession(id)
+  // PATCH /api/v1/admin/sessions/:id/cancel
+  await apiRequest(`/admin/sessions/${id}/cancel`, { method: 'PATCH', ...bearer(getAdminToken()) })
+}
+
+// ─── Editor queries ───────────────────────────────────────────────────────────
+
+export async function editorGetTeachers(): Promise<Teacher[]> {
+  const res = await apiRequest<{ teachers: Teacher[] }>('/editor/teachers', bearer(getEditorToken()))
+  return res.teachers
+}
+
+export async function editorApproveTeacher(id: string): Promise<void> {
+  await apiRequest(`/editor/teachers/${id}/approve`, { method: 'PATCH', ...bearer(getEditorToken()) })
+}
+
+export async function editorRejectTeacher(id: string): Promise<void> {
+  await apiRequest(`/editor/teachers/${id}/reject`, { method: 'PATCH', ...bearer(getEditorToken()) })
+}
+
+export async function editorGetProducts(): Promise<Product[]> {
+  const res = await apiRequest<{ products: Product[] }>('/editor/products', bearer(getEditorToken()))
+  return res.products
+}
+
+export async function editorGetSessions(): Promise<SessionWithClass[]> {
+  const res = await apiRequest<{ sessions: SessionWithClass[] }>('/editor/sessions', bearer(getEditorToken()))
+  return res.sessions
+}
+
+export async function editorUpdateSession(id: string, payload: UpdateSessionPayload): Promise<LmsSession> {
+  const res = await apiRequest<{ session: LmsSession }>(`/editor/sessions/${id}`, {
+    method: 'PATCH', body: payload, ...bearer(getEditorToken()),
+  })
+  return res.session
+}
+
+export async function editorCancelSession(id: string): Promise<void> {
+  await apiRequest(`/editor/sessions/${id}/cancel`, { method: 'PATCH', ...bearer(getEditorToken()) })
+}
+
+export async function editorGetClassesWithProducts(): Promise<ClassWithProduct[]> {
+  const res = await apiRequest<{ classes: ClassWithProduct[] }>('/editor/classes', bearer(getEditorToken()))
+  return res.classes
+}
+
+export async function editorGetChatMessages(classId: string): Promise<ChatMessage[]> {
+  const res = await apiRequest<{ messages: ChatMessage[] }>(
+    `/editor/chat?classId=${encodeURIComponent(classId)}`,
+    bearer(getEditorToken()),
+  )
+  return res.messages
+}
+
+// ─── Community ────────────────────────────────────────────────────────────────
+
+export interface CommunityMessage {
+  id: string
+  authorId: string
+  authorName: string
+  authorRole: 'student' | 'admin'
+  text: string
+  createdAt: string
+}
+
+export type CommunityMode = 'open' | 'readonly'
+
+function getCommunityToken(): string {
+  return getStudentToken() || getAdminToken()
+}
+
+export async function communityGetSettings(): Promise<CommunityMode> {
+  const res = await apiRequest<{ mode: CommunityMode }>('/community/settings', bearer(getCommunityToken()))
+  return res.mode
+}
+
+export async function communityGetMessages(): Promise<CommunityMessage[]> {
+  const res = await apiRequest<{ messages: CommunityMessage[] }>('/community/messages', bearer(getCommunityToken()))
+  return res.messages
+}
+
+export async function communityPostMessage(text: string): Promise<CommunityMessage> {
+  const res = await apiRequest<{ message: CommunityMessage }>('/community/messages', {
+    method: 'POST',
+    body: { text },
+    ...bearer(getCommunityToken()),
+  })
+  return res.message
+}
+
+export async function adminPostCommunityMessage(text: string): Promise<CommunityMessage> {
+  const res = await apiRequest<{ message: CommunityMessage }>('/community/messages', {
+    method: 'POST',
+    body: { text },
+    ...bearer(getAdminToken()),
+  })
+  return res.message
+}
+
+export async function adminDeleteCommunityMessage(id: string): Promise<void> {
+  await apiRequest(`/community/messages/${id}`, { method: 'DELETE', ...bearer(getAdminToken()) })
+}
+
+export async function adminUpdateCommunityMode(mode: CommunityMode): Promise<void> {
+  await apiRequest('/community/settings', { method: 'PUT', body: { mode }, ...bearer(getAdminToken()) })
+}
+
+export async function adminCommunityGetMessages(): Promise<CommunityMessage[]> {
+  const res = await apiRequest<{ messages: CommunityMessage[] }>('/community/messages', bearer(getAdminToken()))
+  return res.messages
+}
+
+export async function adminCommunityGetSettings(): Promise<CommunityMode> {
+  const res = await apiRequest<{ mode: CommunityMode }>('/community/settings', bearer(getAdminToken()))
+  return res.mode
 }
 
 // ─── Admin — Demo overrides ───────────────────────────────────────────────────
 
 export async function adminGetDemoOverrides(): Promise<DemoOverride[]> {
-  // BACKEND SWAP: GET /api/v1/admin/demo-overrides
-  return getDemoOverrides()
+  // GET /api/v1/admin/demo-overrides
+  const res = await apiRequest<{ overrides: DemoOverride[] }>('/admin/demo-overrides', bearer(getAdminToken()))
+  return res.overrides
 }
 
 export async function adminSetDemoOverride(
   studentId: string,
-  studentName: string,
-  studentEmail: string,
+  _studentName: string,
+  _studentEmail: string,
   action: { type: 'extend'; days: number } | { type: 'full_access' } | { type: 'reset' },
 ): Promise<DemoOverride> {
-  // BACKEND SWAP: PATCH /api/v1/admin/students/:id/demo-override
-  const overrides = getDemoOverrides()
-  const idx = overrides.findIndex(o => o.studentId === studentId)
-
-  let demoExpiresAt: string | null
-  if (action.type === 'full_access') {
-    demoExpiresAt = null
-  } else if (action.type === 'reset') {
-    demoExpiresAt = new Date().toISOString()
-  } else {
-    const base = new Date()
-    base.setDate(base.getDate() + action.days)
-    demoExpiresAt = base.toISOString()
-  }
-
-  const override: DemoOverride = {
-    studentId,
-    studentName,
-    studentEmail,
-    demoExpiresAt,
-    overriddenByAdminId: 'admin-001',
-    overriddenAt: new Date().toISOString(),
-  }
-
-  if (idx === -1) {
-    saveDemoOverrides([...overrides, override])
-  } else {
-    overrides[idx] = override
-    saveDemoOverrides(overrides)
-  }
-
-  return override
+  // PATCH /api/v1/admin/students/:id/demo-override
+  const res = await apiRequest<{ override: DemoOverride }>(`/admin/students/${studentId}/demo-override`, {
+    method: 'PATCH',
+    body: action,
+    ...bearer(getAdminToken()),
+  })
+  return res.override
 }
 
 // ─── Student ──────────────────────────────────────────────────────────────────
@@ -467,138 +536,125 @@ export interface ProgramListing {
 }
 
 export async function getAvailablePrograms(): Promise<ProgramListing[]> {
-  // BACKEND SWAP: GET /api/v1/programs
-  const products = getProducts().filter(p => p.isActive)
-  const classes = getClasses()
-  const teachers = getTeachers()
-  const sessions = getSessions()
-
-  return products.map(product => {
-    const cls = classes.find(c => c.productId === product.id)
-    const teacher = cls ? teachers.find(t => t.id === cls.teacherId) : undefined
-    const sessionCount = cls ? sessions.filter(s => s.classId === cls.id && s.status !== 'cancelled').length : 0
-    return {
-      product,
-      teacherName: teacher?.name ?? 'TBA',
-      teacherId: teacher?.id ?? '',
-      classId: cls?.id ?? '',
-      sessionCount,
-      enrolledCount: cls?.enrolledStudentIds.length ?? 0,
-    }
-  })
+  // GET /api/v1/programs
+  const res = await apiRequest<{ programs: ProgramListing[] }>('/programs')
+  return res.programs
 }
 
-export async function studentGetEnrolledClasses(studentId: string): Promise<ClassWithProduct[]> {
-  // BACKEND SWAP: GET /api/v1/student/classes
-  // In the mock layer, real auth user IDs won't match mock student IDs (student-mock-XXX).
-  // Fall back to student-mock-001 so demo enrollments are visible to the logged-in user.
-  const DEMO_FALLBACK_ID = 'student-mock-001'
-  const allClasses = getClasses()
-  const directMatches = allClasses.filter(c => c.enrolledStudentIds.includes(studentId))
-  const classes = directMatches.length > 0
-    ? directMatches
-    : allClasses.filter(c => c.enrolledStudentIds.includes(DEMO_FALLBACK_ID))
-  const products = getProducts()
-  const sessions = getSessions()
-  const teachers = getTeachers()
+export interface ProgramDetail {
+  productId: string
+  name: string
+  description: string
+  upfrontPrice: number
+  installmentAmount: number
+  installmentMonths: number
+  teacherName: string
+  teacherId: string | null
+  teacherBio: string
+  classId: string | null
+  sessions: { id: string; scheduledAt: string; durationMinutes: number; status: string }[]
+  enrolledCount: number
+  sessionCount: number
+}
 
-  return classes.map(c => {
-    const product = products.find(p => p.id === c.productId)
-    const teacher = teachers.find(t => t.id === c.teacherId)
-    const upcoming = sessions
-      .filter(s => s.classId === c.id && (s.status === 'scheduled' || s.status === 'live'))
-      .sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime())
+export async function getProgramById(productId: string): Promise<ProgramDetail | null> {
+  // GET /api/v1/programs/:productId
+  try {
+    const res = await apiRequest<{ program: ProgramDetail }>(`/programs/${productId}`)
+    return res.program
+  } catch { return null }
+}
 
-    return {
-      ...c,
-      productName: product?.name ?? 'Unknown Product',
-      teacherName: teacher?.name ?? 'Unknown Teacher',
-      teacherPhoto: teacher?.profilePicture,
-      nextSession: upcoming[0],
-    }
-  })
+export interface ClassOption {
+  classId: string
+  name: string
+  description: string
+  teacherName: string
+  enrolledCount: number
+}
+
+export async function getClassesForProduct(productId: string): Promise<ClassOption[]> {
+  try {
+    const res = await apiRequest<{ classes: ClassOption[] }>(`/programs/${productId}/classes`)
+    return res.classes
+  } catch { return [] }
+}
+
+export async function studentGetEnrolledClasses(_studentId: string): Promise<ClassWithProduct[]> {
+  // GET /api/v1/student/classes
+  const res = await apiRequest<{ classes: (ClassWithProduct & { enrolledAt?: string; demoExpiresAt?: string })[] }>(
+    '/student/classes',
+    bearer(getStudentToken()),
+  )
+  return res.classes.map(c => ({
+    ...c,
+    enrolledStudentIds: [],
+  }))
 }
 
 export async function studentGetSessionsForClass(classId: string): Promise<LmsSession[]> {
-  // BACKEND SWAP: GET /api/v1/student/classes/:classId/sessions
-  return getTeacherSessions(classId)
+  // GET /api/v1/student/classes/:classId/sessions
+  const res = await apiRequest<{ sessions: LmsSession[] }>(
+    `/student/classes/${classId}/sessions`,
+    bearer(getStudentToken()),
+  )
+  return res.sessions
 }
 
 // ─── Shared utils ─────────────────────────────────────────────────────────────
 
-export function generateMeetingLink(classId: string): string {
-  // BACKEND SWAP: backend generates real Zoom meeting URLs
-  return `https://zoom.us/j/nextgen-${classId}-${Date.now()}`
+export function generateMeetingLink(_classId: string): string {
+  return ''
 }
 
 export async function getClassById(classId: string): Promise<LmsClass | null> {
-  // BACKEND SWAP: GET /api/v1/classes/:classId
-  const classes = getClasses()
-  return classes.find(c => c.id === classId) ?? null
+  // GET /api/v1/student/classes/:classId
+  try {
+    const res = await apiRequest<{ class: LmsClass }>(`/student/classes/${classId}`, bearer(getStudentToken()))
+    return { ...res.class, enrolledStudentIds: [] }
+  } catch { return null }
 }
 
 export async function getAllClassesWithProducts(): Promise<ClassWithProduct[]> {
-  // BACKEND SWAP: GET /api/v1/admin/classes
-  const classes = getClasses()
-  const products = getProducts()
-  const teachers = getTeachers()
-  const sessions = getSessions()
-
-  return classes.map(c => {
-    const product = products.find(p => p.id === c.productId)
-    const teacher = teachers.find(t => t.id === c.teacherId)
-    const upcoming = sessions
-      .filter(s => s.classId === c.id && (s.status === 'scheduled' || s.status === 'live'))
-      .sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime())
-
-    return {
-      ...c,
-      productName: product?.name ?? 'Unknown Product',
-      teacherName: teacher?.name ?? 'Unknown Teacher',
-      nextSession: upcoming[0],
-    }
-  })
+  // GET /api/v1/admin/classes
+  const res = await apiRequest<{ classes: ClassWithProduct[] }>('/admin/classes', bearer(getAdminToken()))
+  return res.classes
 }
 
 // ─── Chat ─────────────────────────────────────────────────────────────────────
 
-export async function getGroupChatMessages(classId: string): Promise<ChatMessage[]> {
-  // BACKEND SWAP: GET /api/v1/chat/group?classId=
-  const messages = getChatMessages()
-  return messages
-    .filter(m => m.classId === classId)
-    .sort((a, b) => new Date(a.sentAt).getTime() - new Date(b.sentAt).getTime())
+export async function getGroupChatMessages(classId: string, role: 'teacher' | 'student' | 'admin' = 'teacher'): Promise<ChatMessage[]> {
+  const token = role === 'student' ? getStudentToken() : role === 'admin' ? getAdminToken() : getTeacherToken()
+  const res = await apiRequest<{ messages: ChatMessage[] }>(
+    `/chat/group?classId=${encodeURIComponent(classId)}`,
+    bearer(token),
+  )
+  return res.messages
 }
 
 export async function sendGroupChatMessage(
   classId: string,
-  senderId: string,
+  _senderId: string,
   senderName: string,
   senderRole: 'student' | 'teacher',
   text: string,
 ): Promise<ChatMessage> {
-  // BACKEND SWAP: POST /api/v1/chat/group
-  const messages = getChatMessages()
-  const newMsg: ChatMessage = {
-    id: `msg-${Date.now()}`,
-    classId,
-    senderId,
-    senderName,
-    senderRole,
-    text: text.trim(),
-    sentAt: new Date().toISOString(),
-  }
-  saveChatMessages([...messages, newMsg])
-  return newMsg
+  // POST /api/v1/chat/group
+  const token = senderRole === 'teacher' ? getTeacherToken() : getStudentToken()
+  const res = await apiRequest<{ message: ChatMessage }>('/chat/group', {
+    method: 'POST',
+    body: { classId, text, senderName },
+    ...bearer(token),
+  })
+  return res.message
 }
 
 export async function deleteChatMessage(messageId: string): Promise<void> {
-  // BACKEND SWAP: DELETE /api/v1/chat/messages/:id (admin only)
-  const messages = getChatMessages()
-  saveChatMessages(messages.filter(m => m.id !== messageId))
+  // DELETE /api/v1/chat/messages/:id (admin only)
+  await apiRequest(`/chat/messages/${messageId}`, { method: 'DELETE', ...bearer(getAdminToken()) })
 }
 
-// Legacy aliases — kept so existing imports don't break during transition
+// Legacy aliases
 export const getChatMessagesForClass = getGroupChatMessages.bind(null)
 export const getAllChatThreads = getGroupChatMessages.bind(null)
 export async function sendChatMessage(classId: string, _studentId: string, senderRole: 'student' | 'teacher', text: string): Promise<ChatMessage> {
@@ -607,309 +663,227 @@ export async function sendChatMessage(classId: string, _studentId: string, sende
 
 // ─── Attendance ───────────────────────────────────────────────────────────────
 
-export async function getAttendanceForClass(classId: string, studentId: string): Promise<AttendanceRecord[]> {
-  // BACKEND SWAP: GET /api/v1/student/classes/:classId/attendance
-  // Mock: deterministic random based on student+session id
-  const sessions = getSessions()
-  const completed = sessions.filter(s => s.classId === classId && s.status === 'completed')
-
-  return completed.map(s => {
-    const seed = (studentId + s.id).split('').reduce((acc, c) => acc + c.charCodeAt(0), 0)
-    const status: AttendanceRecord['status'] = seed % 5 === 0 ? 'missed' : 'attended'
-    return {
-      sessionId: s.id,
-      classId: s.classId,
-      scheduledAt: s.scheduledAt,
-      durationMinutes: s.durationMinutes,
-      status,
-    }
-  }).sort((a, b) => new Date(b.scheduledAt).getTime() - new Date(a.scheduledAt).getTime())
+export async function getAttendanceForClass(classId: string, _studentId: string): Promise<AttendanceRecord[]> {
+  // GET /api/v1/student/classes/:classId/attendance
+  const res = await apiRequest<{ records: AttendanceRecord[] }>(
+    `/student/classes/${classId}/attendance`,
+    bearer(getStudentToken()),
+  )
+  return res.records
 }
 
 // ─── Recordings ───────────────────────────────────────────────────────────────
 
 export async function getRecordingsForClass(classId: string): Promise<RecordedSession[]> {
-  // BACKEND SWAP: GET /api/v1/student/classes/:classId/recordings
-  const sessions = getSessions()
-  return sessions
-    .filter(s => s.classId === classId && s.status === 'completed')
-    .map((s, idx) => ({
-      sessionId: s.id,
-      classId: s.classId,
-      scheduledAt: s.scheduledAt,
-      durationMinutes: s.durationMinutes,
-      recordingUrl: s.recordingUrl ?? null,
-      accessLevel: idx === 0 ? ('full' as const) : ('full' as const),
-    }))
-    .sort((a, b) => new Date(b.scheduledAt).getTime() - new Date(a.scheduledAt).getTime())
+  // GET /api/v1/student/classes/:classId/recordings
+  const res = await apiRequest<{ recordings: RecordedSession[] }>(
+    `/student/classes/${classId}/recordings`,
+    bearer(getStudentToken()),
+  )
+  return res.recordings
 }
 
 export async function updateSessionRecording(sessionId: string, url: string): Promise<LmsSession> {
-  // BACKEND SWAP: PATCH /api/v1/teacher/sessions/:id/recording
-  const sessions = getSessions()
-  const idx = sessions.findIndex(s => s.id === sessionId)
-  if (idx === -1) throw new Error('Session not found.')
-  sessions[idx] = { ...sessions[idx], recordingUrl: url }
-  saveSessions(sessions)
-  return sessions[idx]
+  // PATCH /api/v1/teacher/sessions/:id/recording
+  const res = await apiRequest<{ session: LmsSession }>(`/teacher/sessions/${sessionId}/recording`, {
+    method: 'PATCH',
+    body: { url },
+    ...bearer(getTeacherToken()),
+  })
+  return res.session
 }
 
 export async function removeSessionRecording(sessionId: string): Promise<LmsSession> {
-  // BACKEND SWAP: DELETE /api/v1/teacher/sessions/:id/recording
-  const sessions = getSessions()
-  const idx = sessions.findIndex(s => s.id === sessionId)
-  if (idx === -1) throw new Error('Session not found.')
-  const updated = { ...sessions[idx] }
-  delete updated.recordingUrl
-  sessions[idx] = updated
-  saveSessions(sessions)
-  return sessions[idx]
+  // DELETE /api/v1/teacher/sessions/:id/recording
+  const res = await apiRequest<{ session: LmsSession }>(`/teacher/sessions/${sessionId}/recording`, {
+    method: 'DELETE',
+    ...bearer(getTeacherToken()),
+  })
+  return res.session
 }
 
 // ─── Notifications ────────────────────────────────────────────────────────────
 
-export async function getStudentNotificationPrefs(studentId: string): Promise<NotificationPrefs> {
-  // BACKEND SWAP: GET /api/v1/student/notification-prefs
-  return _getNotificationPrefs(studentId)
+export async function getStudentNotificationPrefs(_studentId: string): Promise<NotificationPrefs> {
+  // GET /api/v1/student/notification-prefs
+  const res = await apiRequest<{ prefs: NotificationPrefs }>('/student/notification-prefs', bearer(getStudentToken()))
+  return res.prefs
 }
 
 export async function updateStudentNotificationPrefs(prefs: NotificationPrefs): Promise<void> {
-  // BACKEND SWAP: PATCH /api/v1/student/notification-prefs
-  _saveNotificationPrefs(prefs)
+  // PATCH /api/v1/student/notification-prefs
+  await apiRequest('/student/notification-prefs', {
+    method: 'PATCH',
+    body: {
+      emailEnabled:       prefs.emailEnabled,
+      pushEnabled:        prefs.pushEnabled,
+      sessionReminder:    prefs.sessionReminder,
+      sessionStarted:     prefs.sessionStarted,
+      sessionRescheduled: prefs.sessionRescheduled,
+      noticePosted:       prefs.noticePosted,
+    },
+    ...bearer(getStudentToken()),
+  })
 }
 
 export async function getStudentLmsNotifications(_studentId: string): Promise<LmsNotification[]> {
-  // BACKEND SWAP: GET /api/v1/student/notifications
-  return getLmsNotifications()
+  // GET /api/v1/student/notifications
+  const res = await apiRequest<{ notifications: LmsNotification[] }>('/student/notifications', bearer(getStudentToken()))
+  return res.notifications
 }
 
 export async function markLmsNotificationRead(id: string): Promise<void> {
-  // BACKEND SWAP: PATCH /api/v1/student/notifications/:id/read
-  const notifications = getLmsNotifications()
-  const idx = notifications.findIndex(n => n.id === id)
-  if (idx !== -1) {
-    notifications[idx] = { ...notifications[idx], read: true }
-    saveLmsNotifications(notifications)
-  }
+  // PATCH /api/v1/student/notifications/:id/read
+  await apiRequest(`/student/notifications/${id}/read`, { method: 'PATCH', ...bearer(getStudentToken()) })
 }
 
 // ─── Coupons / Payments ───────────────────────────────────────────────────────
 
 export async function getAllCoupons(): Promise<Coupon[]> {
-  // BACKEND SWAP: GET /api/v1/admin/coupons
-  return getCoupons()
+  // GET /api/v1/admin/coupons
+  const res = await apiRequest<{ coupons: (Omit<Coupon, 'maxUses'> & { maxUses: number | null })[] }>(
+    '/admin/coupons',
+    bearer(getAdminToken()),
+  )
+  return res.coupons.map(c => ({ ...c, maxUses: c.maxUses ?? 0 }))
 }
 
 export async function adminCreateCoupon(payload: CreateCouponPayload): Promise<Coupon> {
-  // BACKEND SWAP: POST /api/v1/admin/coupons
-  const coupons = getCoupons()
-  const existing = coupons.find(c => c.code.toLowerCase() === payload.code.toLowerCase())
-  if (existing) throw new Error('Coupon code already exists.')
-
-  const newCoupon: Coupon = {
-    id: `coupon-${Date.now()}`,
-    code: payload.code.toUpperCase().trim(),
-    discountType: payload.discountType,
-    discountValue: payload.discountValue,
-    maxUses: payload.maxUses,
-    usedCount: 0,
-    productId: payload.productId,
-    expiresAt: payload.expiresAt,
-    isActive: true,
-    createdAt: new Date().toISOString(),
-  }
-  saveCoupons([...coupons, newCoupon])
-  return newCoupon
+  // POST /api/v1/admin/coupons
+  const res = await apiRequest<{ coupon: Omit<Coupon, 'maxUses'> & { maxUses: number | null } }>('/admin/coupons', {
+    method: 'POST',
+    body: {
+      code: payload.code,
+      discountType: payload.discountType,
+      discountValue: payload.discountValue,
+      maxUses: payload.maxUses === 0 ? undefined : payload.maxUses,
+      productId: payload.productId ?? undefined,
+      expiresAt: payload.expiresAt ?? undefined,
+    },
+    ...bearer(getAdminToken()),
+  })
+  return { ...res.coupon, maxUses: res.coupon.maxUses ?? 0 }
 }
 
 export async function adminToggleCoupon(id: string, isActive: boolean): Promise<Coupon> {
-  // BACKEND SWAP: PATCH /api/v1/admin/coupons/:id
-  const coupons = getCoupons()
-  const idx = coupons.findIndex(c => c.id === id)
-  if (idx === -1) throw new Error('Coupon not found.')
-  coupons[idx] = { ...coupons[idx], isActive }
-  saveCoupons(coupons)
-  return coupons[idx]
+  // PATCH /api/v1/admin/coupons/:id
+  const res = await apiRequest<{ coupon: Omit<Coupon, 'maxUses'> & { maxUses: number | null } }>(`/admin/coupons/${id}`, {
+    method: 'PATCH',
+    body: { isActive },
+    ...bearer(getAdminToken()),
+  })
+  return { ...res.coupon, maxUses: res.coupon.maxUses ?? 0 }
 }
 
 export async function adminDeleteCoupon(id: string): Promise<void> {
-  // BACKEND SWAP: DELETE /api/v1/admin/coupons/:id
-  saveCoupons(getCoupons().filter(c => c.id !== id))
+  // DELETE /api/v1/admin/coupons/:id
+  await apiRequest(`/admin/coupons/${id}`, { method: 'DELETE', ...bearer(getAdminToken()) })
 }
 
 export async function validateCoupon(
   code: string,
   productId: string,
 ): Promise<{ valid: boolean; discount: number; type: 'percentage' | 'fixed'; message?: string }> {
-  // BACKEND SWAP: POST /api/v1/coupons/validate
-  const coupons = getCoupons()
-  const coupon = coupons.find(c => c.code.toUpperCase() === code.toUpperCase().trim())
-
-  if (!coupon) return { valid: false, discount: 0, type: 'percentage', message: 'Invalid coupon code.' }
-  if (!coupon.isActive) return { valid: false, discount: 0, type: 'percentage', message: 'This coupon is no longer active.' }
-  if (coupon.expiresAt && new Date(coupon.expiresAt) < new Date()) return { valid: false, discount: 0, type: 'percentage', message: 'This coupon has expired.' }
-  if (coupon.maxUses > 0 && coupon.usedCount >= coupon.maxUses) return { valid: false, discount: 0, type: 'percentage', message: 'This coupon has reached its usage limit.' }
-  if (coupon.productId && coupon.productId !== productId) return { valid: false, discount: 0, type: 'percentage', message: 'This coupon does not apply to this product.' }
-
-  return { valid: true, discount: coupon.discountValue, type: coupon.discountType }
+  // POST /api/v1/coupons/validate
+  const res = await apiRequest<{ valid: boolean; discount?: number; type?: 'percentage' | 'fixed'; message?: string }>(
+    '/coupons/validate',
+    { method: 'POST', body: { code, productId } },
+  )
+  return {
+    valid: res.valid,
+    discount: res.discount ?? 0,
+    type: res.type ?? 'percentage',
+    message: res.message,
+  }
 }
 
 export async function submitCheckout(
   productId: string,
-  _plan: 'upfront' | 'installment',
-  _couponCode?: string,
-  studentId?: string,
-): Promise<{ success: boolean; enrollmentId: string }> {
-  // BACKEND SWAP: POST /api/v1/payments/checkout (Stripe + enrollment creation)
-  await new Promise(r => setTimeout(r, 1500))
-
-  if (studentId) {
-    const classes = getClasses()
-    const cls = classes.find(c => c.productId === productId)
-    if (cls && !cls.enrolledStudentIds.includes(studentId)) {
-      const idx = classes.indexOf(cls)
-      classes[idx] = { ...cls, enrolledStudentIds: [...cls.enrolledStudentIds, studentId] }
-      saveClasses(classes)
-    }
-  }
-
-  return { success: true, enrollmentId: `enroll-${Date.now()}` }
+  plan: 'upfront' | 'installment',
+  couponCode?: string,
+  _studentId?: string,
+  classId?: string,
+): Promise<{ success: boolean; enrollmentId: string; clientSecret?: string; orderId: string }> {
+  const res = await apiRequest<{ clientSecret: string; orderId: string; enrolled: boolean }>(
+    '/payments/checkout',
+    {
+      method: 'POST',
+      body: { productId, plan, couponCode, classId },
+      ...bearer(getStudentToken()),
+    },
+  )
+  return { success: true, enrollmentId: res.orderId, clientSecret: res.clientSecret, orderId: res.orderId }
 }
 
-// ─── Admin — Classes & Enrollment ────────────────────────────────────────────
+// ─── Admin — Classes & Enrollment ─────────────────────────────────────────────
 
 export async function adminGetClasses(): Promise<LmsClass[]> {
-  // BACKEND SWAP: GET /api/v1/admin/classes
-  return getClasses()
+  // GET /api/v1/admin/classes
+  const res = await apiRequest<{ classes: LmsClass[] }>('/admin/classes', bearer(getAdminToken()))
+  return res.classes
 }
 
 export async function adminCreateClass(payload: CreateClassPayload): Promise<LmsClass> {
-  // BACKEND SWAP: POST /api/v1/admin/classes
-  const classes = getClasses()
-  const products = getProducts()
-
-  const newClass: LmsClass = {
-    id: `class-${Date.now()}`,
-    productId: payload.productId,
-    name: payload.name.trim(),
-    description: payload.description?.trim() ?? '',
-    teacherId: payload.teacherId,
-    defaultDurationMinutes: payload.defaultDurationMinutes,
-    enrolledStudentIds: [],
-  }
-
-  saveClasses([...classes, newClass])
-
-  const pidx = products.findIndex(p => p.id === payload.productId)
-  if (pidx !== -1) {
-    products[pidx] = { ...products[pidx], classIds: [...products[pidx].classIds, newClass.id] }
-    saveProducts(products)
-  }
-
-  const teachers = getTeachers()
-  const tidx = teachers.findIndex(t => t.id === payload.teacherId)
-  if (tidx !== -1) {
-    teachers[tidx] = { ...teachers[tidx], assignedClassIds: [...teachers[tidx].assignedClassIds, newClass.id] }
-    saveTeachers(teachers)
-  }
-
-  return newClass
+  // POST /api/v1/admin/classes
+  const res = await apiRequest<{ class: LmsClass }>('/admin/classes', {
+    method: 'POST',
+    body: payload,
+    ...bearer(getAdminToken()),
+  })
+  return res.class
 }
 
 export async function adminUpdateClass(id: string, payload: Partial<CreateClassPayload>): Promise<LmsClass> {
-  // BACKEND SWAP: PATCH /api/v1/admin/classes/:id
-  const classes = getClasses()
-  const idx = classes.findIndex(c => c.id === id)
-  if (idx === -1) throw new Error('Class not found.')
-  classes[idx] = { ...classes[idx], ...payload }
-  saveClasses(classes)
-  return classes[idx]
+  // PATCH /api/v1/admin/classes/:id
+  const res = await apiRequest<{ class: LmsClass }>(`/admin/classes/${id}`, {
+    method: 'PATCH',
+    body: payload,
+    ...bearer(getAdminToken()),
+  })
+  return res.class
 }
 
 export async function adminGetEnrollmentsForClass(classId: string): Promise<StudentEnrollment[]> {
-  // BACKEND SWAP: GET /api/v1/admin/classes/:classId/enrollments
-  return getEnrollments().filter(e => e.classId === classId)
+  // GET /api/v1/admin/classes/:classId/enrollments
+  const res = await apiRequest<{ enrollments: (StudentEnrollment & { studentName?: string; studentEmail?: string; accessType?: string })[] }>(
+    `/admin/classes/${classId}/enrollments`,
+    bearer(getAdminToken()),
+  )
+  return res.enrollments
 }
 
 export async function adminEnrollStudent(payload: EnrollStudentPayload): Promise<void> {
-  // BACKEND SWAP: POST /api/v1/admin/classes/:classId/enroll
-  const enrollments = getEnrollments()
-  const existing = enrollments.find(e => e.classId === payload.classId && e.studentId === payload.studentId)
-  if (existing) throw new Error('Student is already enrolled in this class.')
+  // POST /api/v1/admin/classes/:classId/enroll
+  let accessType: 'full' | 'demo'
+  let demoDays: number | undefined
 
-  const newEnrollment: StudentEnrollment = {
-    studentId: payload.studentId,
-    classId: payload.classId,
-    enrolledAt: new Date().toISOString(),
-    demoExpiresAt: payload.demoExpiresAt ?? undefined,
+  if (payload.demoExpiresAt === null) {
+    accessType = 'full'
+  } else {
+    accessType = 'demo'
+    const expiresMs = new Date(payload.demoExpiresAt).getTime() - Date.now()
+    demoDays = Math.max(1, Math.round(expiresMs / (1000 * 60 * 60 * 24)))
   }
-  saveEnrollments([...enrollments, newEnrollment])
 
-  const classes = getClasses()
-  const cidx = classes.findIndex(c => c.id === payload.classId)
-  if (cidx !== -1 && !classes[cidx].enrolledStudentIds.includes(payload.studentId)) {
-    classes[cidx] = { ...classes[cidx], enrolledStudentIds: [...classes[cidx].enrolledStudentIds, payload.studentId] }
-    saveClasses(classes)
-  }
+  await apiRequest(`/admin/classes/${payload.classId}/enroll`, {
+    method: 'POST',
+    body: { studentId: payload.studentId, accessType, demoDays },
+    ...bearer(getAdminToken()),
+  })
 }
 
 export async function adminRemoveEnrollment(classId: string, studentId: string): Promise<void> {
-  // BACKEND SWAP: DELETE /api/v1/admin/classes/:classId/enrollments/:studentId
-  saveEnrollments(getEnrollments().filter(e => !(e.classId === classId && e.studentId === studentId)))
-
-  const classes = getClasses()
-  const cidx = classes.findIndex(c => c.id === classId)
-  if (cidx !== -1) {
-    classes[cidx] = { ...classes[cidx], enrolledStudentIds: classes[cidx].enrolledStudentIds.filter(id => id !== studentId) }
-    saveClasses(classes)
-  }
+  // DELETE /api/v1/admin/classes/:classId/enrollments/:studentId
+  await apiRequest(`/admin/classes/${classId}/enrollments/${studentId}`, {
+    method: 'DELETE',
+    ...bearer(getAdminToken()),
+  })
 }
 
 // ─── Teacher Analytics ────────────────────────────────────────────────────────
 
-export async function getTeacherAnalytics(teacherId: string): Promise<TeacherAnalytics> {
-  // BACKEND SWAP: GET /api/v1/teacher/analytics
-  const classes = getClasses().filter(c => c.teacherId === teacherId)
-  const sessions = getSessions()
-
-  const perSession: SessionAnalytics[] = []
-
-  for (const cls of classes) {
-    const completed = sessions.filter(s => s.classId === cls.id && s.status === 'completed')
-    for (const s of completed) {
-      const attendanceCount = s.attendanceCount ?? null
-      const attendancePercent =
-        attendanceCount !== null && cls.enrolledStudentIds.length > 0
-          ? Math.round((attendanceCount / cls.enrolledStudentIds.length) * 100)
-          : null
-      perSession.push({
-        sessionId: s.id,
-        scheduledAt: s.scheduledAt,
-        scheduledDuration: s.durationMinutes,
-        actualDuration: s.actualDurationMinutes ?? null,
-        attendanceCount,
-        attendancePercent,
-      })
-    }
-  }
-
-  const totalStudents = new Set(classes.flatMap(c => c.enrolledStudentIds)).size
-  const attendanceRates = perSession.filter(s => s.attendancePercent !== null).map(s => s.attendancePercent!)
-  const avgAttendanceRate = attendanceRates.length > 0
-    ? Math.round(attendanceRates.reduce((a, b) => a + b, 0) / attendanceRates.length)
-    : 0
-
-  const durations = perSession.filter(s => s.actualDuration !== null).map(s => s.actualDuration!)
-  const avgActualDuration = durations.length > 0
-    ? Math.round(durations.reduce((a, b) => a + b, 0) / durations.length)
-    : 0
-
-  return {
-    teacherId,
-    totalSessionsCompleted: perSession.length,
-    avgAttendanceRate,
-    avgActualDuration,
-    totalStudentsTaught: totalStudents,
-    perSession: perSession.sort((a, b) => new Date(b.scheduledAt).getTime() - new Date(a.scheduledAt).getTime()),
-  }
+export async function getTeacherAnalytics(_teacherId: string): Promise<TeacherAnalytics> {
+  // GET /api/v1/teacher/analytics
+  const res = await apiRequest<{ analytics: TeacherAnalytics }>('/teacher/analytics', bearer(getTeacherToken()))
+  return res.analytics
 }

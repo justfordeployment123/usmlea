@@ -1,5 +1,5 @@
 import { Link, useNavigate } from 'react-router-dom'
-import { Clock, LogOut, Mail } from 'lucide-react'
+import { Clock, LogOut, MessageCircle } from 'lucide-react'
 import { useTeacherAuth } from '../../../context/TeacherAuthContext'
 
 export default function TeacherPendingPage() {
@@ -37,11 +37,22 @@ export default function TeacherPendingPage() {
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
           <a
-            href="mailto:support@nextgenmedical.com"
-            style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', padding: '0.65rem 1.25rem', background: '#3730A3', color: '#fff', borderRadius: 10, fontWeight: 700, fontSize: '0.9rem', textDecoration: 'none' }}
+            href="https://wa.me/923310203232"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', padding: '0.65rem 1.25rem', background: '#25D366', color: '#fff', borderRadius: 10, fontWeight: 700, fontSize: '0.9rem', textDecoration: 'none' }}
           >
-            <Mail size={15} />
-            Contact Support
+            <MessageCircle size={15} />
+            WhatsApp: +92 331 0203232
+          </a>
+          <a
+            href="https://wa.me/923335549499"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', padding: '0.65rem 1.25rem', background: '#25D366', color: '#fff', borderRadius: 10, fontWeight: 700, fontSize: '0.9rem', textDecoration: 'none' }}
+          >
+            <MessageCircle size={15} />
+            WhatsApp: +92 333 5549499
           </a>
           <button
             onClick={handleLogout}

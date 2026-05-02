@@ -14,6 +14,7 @@ import {
   Shield,
   Link2,
   UserCheck,
+  UserCog,
   Package,
   Video,
   BookOpen,
@@ -40,6 +41,7 @@ const ADMIN_NAV_GROUPS = [
     label: 'LMS',
     items: [
       { to: '/admin/teachers',    label: 'Teachers',     icon: UserCheck },
+      { to: '/admin/editors',     label: 'Editors',      icon: UserCog },
       { to: '/admin/products',    label: 'Products',     icon: Package },
       { to: '/admin/classes',     label: 'Classes',      icon: BookOpen },
       { to: '/admin/lms-sessions',label: 'Sessions',     icon: Video },

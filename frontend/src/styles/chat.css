@@ -194,16 +194,17 @@
   display: flex;
   align-items: flex-end;
   gap: 8px;
-  max-width: 72%;
+  max-width: 75%;
+  width: fit-content;
 }
 
 .chat-message--right {
-  flex-direction: row-reverse;
-  align-self: flex-end;
+  margin-left: auto;
+  justify-content: flex-end;
 }
 
 .chat-message--left {
-  align-self: flex-start;
+  margin-right: auto;
 }
 
 .chat-message__avatar {
@@ -241,6 +242,10 @@
   word-break: break-word;
 }
 
+.chat-message--right .chat-message__body {
+  align-items: flex-end;
+}
+
 .chat-message--right .chat-message__bubble {
   background: #4F46E5;
   color: #fff;
@@ -263,6 +268,7 @@
 
 .chat-message--right .chat-message__meta {
   justify-content: flex-end;
+  text-align: right;
 }
 
 /* ─── Chat input bar ────────────────────────────────────────── */

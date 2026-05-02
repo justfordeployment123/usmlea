@@ -12,6 +12,14 @@ const envSchema = z.object({
   SUPABASE_ANON_KEY: z.string().min(1),
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
   SUPABASE_JWT_AUDIENCE: z.string().default('authenticated'),
+  STRIPE_SECRET_KEY:     z.string().default('sk_test_placeholder'),
+  STRIPE_WEBHOOK_SECRET: z.string().default('whsec_placeholder'),
+  ZOOM_ACCOUNT_ID:       z.string().default(''),
+  ZOOM_CLIENT_ID:        z.string().default(''),
+  ZOOM_CLIENT_SECRET:    z.string().default(''),
+  ZOOM_SDK_KEY:          z.string().default(''),
+  ZOOM_SDK_SECRET:       z.string().default(''),
+  ZOOM_WEBHOOK_SECRET:   z.string().default(''),
 })
 
 const parsed = envSchema.safeParse(process.env)
@@ -23,5 +31,5 @@ if (!parsed.success) {
 
 export const env = parsed.data
 
-export const ROLE_TYPES = ['student', 'admin'] as const
+export const ROLE_TYPES = ['student', 'admin', 'affiliate', 'teacher', 'editor'] as const
 export type RoleType = (typeof ROLE_TYPES)[number]

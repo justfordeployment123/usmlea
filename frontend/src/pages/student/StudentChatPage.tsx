@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom'
 import { Send, ChevronLeft, Users } from 'lucide-react'
 import { getGroupChatMessages, sendGroupChatMessage, getClassById } from '../../services/lmsApi'
 import { useStudentAuth } from '../../context/StudentAuthContext'
+import { supabase } from '../../lib/supabase'
 import type { ChatMessage, LmsClass } from '../../types/lms'
 import '../../styles/chat.css'
 
@@ -39,11 +40,35 @@ export default function StudentChatPage() {
     if (!classId) return
     Promise.all([
       getClassById(classId),
-      getGroupChatMessages(classId),
+      getGroupChatMessages(classId, 'student'),
     ]).then(([clsData, msgs]) => {
       setCls(clsData)
       setMessages(msgs)
     })
+
+    const channel = supabase
+      .channel(`chat:${classId}`)
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'lms_chat_messages',
+        filter: `class_id=eq.${classId}`,
+      }, payload => {
+        const row = payload.new as Record<string, unknown>
+        const msg: ChatMessage = {
+          id: row.id as string,
+          classId: row.class_id as string,
+          senderId: row.sender_id as string,
+          senderName: row.sender_name as string,
+          senderRole: row.sender_role as 'teacher' | 'student',
+          text: row.text as string,
+          sentAt: row.sent_at as string,
+        }
+        setMessages(prev => prev.some(m => m.id === msg.id) ? prev : [...prev, msg])
+      })
+      .subscribe()
+
+    return () => { supabase.removeChannel(channel) }
   }, [classId])
 
   useEffect(() => {
@@ -128,10 +153,14 @@ export default function StudentChatPage() {
 
                   <div style={{
                     display: 'flex',
-                    flexDirection: isMe ? 'row-reverse' : 'row',
+                    flexDirection: 'row',
                     alignItems: 'flex-end',
                     gap: 8,
                     marginBottom: isLastInGroup ? 6 : 2,
+                    marginLeft: isMe ? 'auto' : undefined,
+                    marginRight: isMe ? undefined : 'auto',
+                    maxWidth: '75%',
+                    justifyContent: isMe ? 'flex-end' : 'flex-start',
                   }}>
                     {/* Avatar — only for others, only at bottom of a group */}
                     {!isMe && (
