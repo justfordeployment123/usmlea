@@ -47,7 +47,6 @@ export default function AdminChatSupervisionPage() {
   async function handleDelete(messageId: string) {
     await deleteChatMessage(messageId)
     setMessages(prev => prev.filter(m => m.id !== messageId))
-    setMsgCounts(prev => ({ ...prev, [selectedClassId]: Math.max(0, (prev[selectedClassId] ?? 1) - 1) }))
     showToast('Message deleted')
   }
 
