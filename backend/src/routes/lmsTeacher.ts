@@ -1,11 +1,14 @@
 import type { NextFunction, Request, Response } from 'express'
 import { Router } from 'express'
 import { z } from 'zod'
+import multer from 'multer'
 import { HttpError } from '../lib/httpError.js'
 import { authenticateRequest, requireRole } from '../middleware/authenticate.js'
 import { supabaseServiceClient } from '../lib/supabase.js'
 import { createZoomMeeting, generateSdkSignature } from '../lib/zoom.js'
 import { notifyAllEnrolledStudents } from '../lib/notify.js'
+
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } })
 
 export const lmsTeacherRouter = Router()
 
@@ -62,6 +65,36 @@ lmsTeacherRouter.get('/teacher/classes', authenticateRequest, requireRole('teach
       }))
 
       return res.status(200).json({ classes: result })
+    } catch (err) { return next(err) }
+  }
+)
+
+// ─── GET /api/v1/teacher/classes/:classId ────────────────────────────────────
+lmsTeacherRouter.get('/teacher/classes/:classId', authenticateRequest, requireRole('teacher'),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const teacherId = req.auth!.userId
+      const { data: cls, error } = await supabaseServiceClient
+        .from('lms_classes')
+        .select('id, name, description, default_duration_minutes, created_at, lms_products!inner(id, name)')
+        .eq('id', req.params.classId)
+        .eq('teacher_id', teacherId)
+        .single()
+
+      if (error || !cls) throw new HttpError(404, 'CLASS_NOT_FOUND', 'Class not found.')
+
+      const { data: enrollments } = await supabaseServiceClient
+        .from('lms_enrollments').select('class_id').eq('class_id', cls.id)
+
+      return res.status(200).json({
+        class: {
+          id: cls.id, name: cls.name, description: cls.description,
+          productId: (cls.lms_products as any).id, productName: (cls.lms_products as any).name,
+          teacherId, defaultDurationMinutes: cls.default_duration_minutes,
+          enrolledStudentCount: (enrollments ?? []).length,
+          createdAt: cls.created_at,
+        }
+      })
     } catch (err) { return next(err) }
   }
 )
@@ -406,6 +439,32 @@ lmsTeacherRouter.get('/teacher/classes/:classId/students', authenticateRequest, 
       })
 
       return res.status(200).json({ students: result })
+    } catch (err) { return next(err) }
+  }
+)
+
+// ─── POST /api/v1/teacher/notices/upload-pdf ─────────────────────────────────
+lmsTeacherRouter.post('/teacher/notices/upload-pdf', authenticateRequest, requireRole('teacher'),
+  upload.single('file'),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      if (!req.file) throw new HttpError(400, 'NO_FILE', 'No file uploaded.')
+      if (req.file.mimetype !== 'application/pdf') throw new HttpError(400, 'INVALID_TYPE', 'Only PDF files are allowed.')
+
+      const classId = req.body.classId as string
+      if (!classId) throw new HttpError(400, 'NO_CLASS_ID', 'classId is required.')
+
+      const path = `${classId}/${Date.now()}-${req.file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_')}`
+
+      const { error } = await supabaseServiceClient.storage
+        .from('notice-pdfs')
+        .upload(path, req.file.buffer, { contentType: 'application/pdf', upsert: false })
+
+      if (error) throw new HttpError(500, 'UPLOAD_FAILED', error.message)
+
+      const { data: urlData } = supabaseServiceClient.storage.from('notice-pdfs').getPublicUrl(path)
+
+      return res.status(200).json({ url: urlData.publicUrl, fileName: req.file.originalname })
     } catch (err) { return next(err) }
   }
 )

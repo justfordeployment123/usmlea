@@ -47,6 +47,7 @@ export interface LmsClass {
   teacherId: string
   defaultDurationMinutes: number
   enrolledStudentIds: string[]
+  enrolledStudentCount?: number
 }
 
 export interface LmsSession {

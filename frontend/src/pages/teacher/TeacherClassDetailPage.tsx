@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom'
 import { useTeacherAuth } from '../../context/TeacherAuthContext'
 import {
@@ -16,6 +16,7 @@ import {
   removeSessionRecording,
 } from '../../services/lmsApi'
 import type { LmsSession, Notice, LmsClass, TeacherStudentSummary } from '../../types/lms'
+import { API_BASE_URL } from '../../config/env'
 import '../../styles/teacher.css'
 import {
   Clock,
@@ -88,8 +89,10 @@ export default function TeacherClassDetailPage() {
   const [noticeTitle, setNoticeTitle] = useState('')
   const [noticeContent, setNoticeContent] = useState('')
   const [noticeFileName, setNoticeFileName] = useState('')
+  const [noticePdfFile, setNoticePdfFile] = useState<File | null>(null)
   const [noticeError, setNoticeError] = useState('')
   const [noticeSubmitting, setNoticeSubmitting] = useState(false)
+  const pdfInputRef = useRef<HTMLInputElement>(null)
 
   // Reason modal — used for both cancellations and missed sessions
   const [reasonModalId, setReasonModalId] = useState<string | null>(null)
@@ -164,28 +167,55 @@ export default function TeacherClassDetailPage() {
   async function handlePostNotice() {
     if (!teacher || !classId) return
     if (!noticeTitle.trim()) { setNoticeError('Title is required.'); return }
-    if (!noticeContent.trim()) { setNoticeError('Content is required.'); return }
+    if (noticeType === 'announcement' && !noticeContent.trim()) { setNoticeError('Content is required.'); return }
+    if (noticeType === 'pdf' && !noticePdfFile) { setNoticeError('Please select a PDF file.'); return }
     setNoticeError('')
     setNoticeSubmitting(true)
     try {
+      let pdfUrl = noticeContent.trim()
+      let fileName = noticeFileName.trim()
+
+      if (noticeType === 'pdf' && noticePdfFile) {
+        const token = JSON.parse(localStorage.getItem('nextgen.teacher.auth') ?? '{}')?.session?.accessToken ?? ''
+        const formData = new FormData()
+        formData.append('file', noticePdfFile)
+        formData.append('classId', classId)
+        const uploadRes = await fetch(`${API_BASE_URL}/teacher/notices/upload-pdf`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+          body: formData,
+        })
+        if (!uploadRes.ok) throw new Error('PDF upload failed.')
+        const uploadData = await uploadRes.json() as { url: string; fileName: string }
+        pdfUrl = uploadData.url
+        fileName = uploadData.fileName
+      }
+
       const newNotice = await createNotice(teacher.id, {
         classId,
         title: noticeTitle.trim(),
-        content: noticeContent.trim(),
+        content: pdfUrl,
         type: noticeType,
-        fileName: noticeType === 'pdf' ? noticeFileName.trim() : undefined,
+        fileName: noticeType === 'pdf' ? fileName : undefined,
       })
       setNotices(prev => [newNotice, ...prev])
-      setShowNoticeModal(false)
-      setNoticeTitle('')
-      setNoticeContent('')
-      setNoticeFileName('')
+      closeNoticeModal()
       showToast('Notice posted ✓')
     } catch {
       setNoticeError('Failed to post notice. Please try again.')
     } finally {
       setNoticeSubmitting(false)
     }
+  }
+
+  function closeNoticeModal() {
+    setShowNoticeModal(false)
+    setNoticeTitle('')
+    setNoticeContent('')
+    setNoticeFileName('')
+    setNoticePdfFile(null)
+    setNoticeError('')
+    if (pdfInputRef.current) pdfInputRef.current.value = ''
   }
 
   const filteredSessions = sessions.filter(s =>
@@ -479,16 +509,20 @@ export default function TeacherClassDetailPage() {
                         <div className="teacher-notice-item__date">
                           {formatDateTime(notice.createdAt)}
                         </div>
-                        {notice.fileName && (
-                          <div style={{ fontSize: '0.75rem', color: '#3730A3', marginTop: 2 }}>
-                            📎 {notice.fileName}
-                          </div>
-                        )}
-                        {notice.content && (
+                        {notice.type === 'pdf' && notice.content ? (
+                          <a
+                            href={notice.content}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{ fontSize: '0.75rem', color: '#3730A3', marginTop: 2, display: 'inline-block' }}
+                          >
+                            📎 {notice.fileName || 'Download PDF'}
+                          </a>
+                        ) : notice.content ? (
                           <p style={{ fontSize: '0.82rem', color: '#6B7280', margin: '4px 0 0', lineHeight: 1.5 }}>
                             {notice.content}
                           </p>
-                        )}
+                        ) : null}
                       </div>
                       <button
                         className="teacher-btn teacher-btn--ghost"
@@ -600,14 +634,14 @@ export default function TeacherClassDetailPage() {
 
       {/* Notice Modal */}
       {showNoticeModal && (
-        <div className="teacher-modal-overlay" onClick={e => { if (e.target === e.currentTarget) setShowNoticeModal(false) }}>
+        <div className="teacher-modal-overlay" onClick={e => { if (e.target === e.currentTarget) closeNoticeModal() }}>
           <div className="teacher-modal">
             <div className="teacher-modal__header">
               <h2 className="teacher-modal__title">Post a Notice</h2>
               <button
                 className="teacher-btn teacher-btn--ghost"
                 style={{ padding: '4px 8px' }}
-                onClick={() => setShowNoticeModal(false)}
+                onClick={() => closeNoticeModal()}
               >
                 <X size={16} />
               </button>
@@ -652,16 +686,32 @@ export default function TeacherClassDetailPage() {
 
             {noticeType === 'pdf' && (
               <div className="teacher-form-field">
-                <label className="teacher-form-label">File Name</label>
+                <label className="teacher-form-label">PDF File *</label>
                 <input
-                  className="teacher-form-input"
-                  placeholder="e.g. lecture-notes-week3.pdf"
-                  value={noticeFileName}
-                  onChange={e => setNoticeFileName(e.target.value)}
+                  ref={pdfInputRef}
+                  type="file"
+                  accept="application/pdf"
+                  style={{ display: 'none' }}
+                  onChange={e => {
+                    const file = e.target.files?.[0] ?? null
+                    setNoticePdfFile(file)
+                  }}
                 />
-                <span className="teacher-form-hint">
-                  Actual file upload will be enabled when backend is connected.
-                </span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <button
+                    type="button"
+                    className="teacher-btn teacher-btn--ghost"
+                    style={{ fontSize: '0.8rem' }}
+                    onClick={() => pdfInputRef.current?.click()}
+                  >
+                    <FileText size={13} /> {noticePdfFile ? 'Change file' : 'Choose PDF'}
+                  </button>
+                  {noticePdfFile && (
+                    <span style={{ fontSize: '0.78rem', color: '#374151' }}>
+                      {noticePdfFile.name}
+                    </span>
+                  )}
+                </div>
               </div>
             )}
 
@@ -672,7 +722,7 @@ export default function TeacherClassDetailPage() {
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
               <button
                 className="teacher-btn teacher-btn--ghost"
-                onClick={() => setShowNoticeModal(false)}
+                onClick={() => closeNoticeModal()}
               >
                 Cancel
               </button>

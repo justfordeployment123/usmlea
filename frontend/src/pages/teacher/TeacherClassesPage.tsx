@@ -74,7 +74,7 @@ export default function TeacherClassesPage() {
                 </span>
                 <span style={{ fontSize: '0.78rem', color: '#6B7280', display: 'flex', alignItems: 'center', gap: 4 }}>
                   <Users size={11} />
-                  {cls.enrolledStudentIds.length} student{cls.enrolledStudentIds.length !== 1 ? 's' : ''}
+                  {cls.enrolledStudentCount ?? cls.enrolledStudentIds.length} student{(cls.enrolledStudentCount ?? cls.enrolledStudentIds.length) !== 1 ? 's' : ''}
                 </span>
               </div>
               <p className="teacher-class-card__desc">

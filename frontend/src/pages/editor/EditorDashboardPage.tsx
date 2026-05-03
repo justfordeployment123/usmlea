@@ -6,8 +6,9 @@ import {
   editorGetProducts,
   editorGetSessions,
   editorApproveTeacher,
+  editorGetClassesWithProducts,
 } from '../../services/lmsApi'
-import type { Teacher, Product, SessionWithClass } from '../../types/lms'
+import type { Teacher, Product, SessionWithClass, ClassWithProduct } from '../../types/lms'
 import '../../styles/editor.css'
 import {
   BookOpen,
@@ -59,6 +60,7 @@ export default function EditorDashboardPage() {
 
   const [teachers, setTeachers] = useState<Teacher[]>([])
   const [products, setProducts] = useState<Product[]>([])
+  const [classes, setClasses] = useState<ClassWithProduct[]>([])
   const [sessions, setSessions] = useState<SessionWithClass[]>([])
   const [loading, setLoading] = useState(true)
   const [approving, setApproving] = useState(false)
@@ -66,13 +68,15 @@ export default function EditorDashboardPage() {
 
   useEffect(() => {
     async function load() {
-      const [t, p, s] = await Promise.all([
+      const [t, p, cls, s] = await Promise.all([
         editorGetTeachers(),
         editorGetProducts(),
+        editorGetClassesWithProducts(),
         editorGetSessions(),
       ])
       setTeachers(t)
       setProducts(p)
+      setClasses(cls)
       setSessions(s)
       setLoading(false)
     }
@@ -86,7 +90,7 @@ export default function EditorDashboardPage() {
 
   const pendingTeachers = teachers.filter(t => t.status === 'pending')
   const activeProducts = products.filter(p => p.isActive)
-  const allClassIds = new Set(products.flatMap(p => p.classIds))
+  const totalClasses = classes.length
   const sessionsThisWeek = sessions.filter(s => isThisWeek(s.scheduledAt))
   const upcomingSessions = sessions
     .filter(s => s.status === 'scheduled' || s.status === 'live')
@@ -168,7 +172,7 @@ export default function EditorDashboardPage() {
         <div className="editor-kpi-card">
           <div className="editor-kpi-card__icon"><Users size={18} /></div>
           <div className="editor-kpi-card__label">Total Classes</div>
-          <div className="editor-kpi-card__value">{allClassIds.size}</div>
+          <div className="editor-kpi-card__value">{totalClasses}</div>
           <div className="editor-kpi-card__sub">across all products</div>
         </div>
         <div className={`editor-kpi-card ${pendingTeachers.length > 0 ? 'editor-kpi-card--amber' : ''}`}>

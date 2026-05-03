@@ -275,12 +275,19 @@ export default function LiveSessionPage() {
                 <div style={{ flex: 1 }}>
                   <div className="lms-notice-item__title">{notice.title}</div>
                   <div className="lms-notice-item__date">{formatDate(notice.createdAt)}</div>
-                  {notice.content && (
+                  {notice.type === 'pdf' && notice.content ? (
+                    <a
+                      href={notice.content}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="lms-notice-item__filename"
+                      style={{ color: '#3730A3', textDecoration: 'none' }}
+                    >
+                      📎 {notice.fileName || 'Download PDF'}
+                    </a>
+                  ) : notice.content ? (
                     <div style={{ fontSize: '0.78rem', color: '#6B7280', marginTop: 4, lineHeight: 1.5 }}>{notice.content}</div>
-                  )}
-                  {notice.fileName && (
-                    <div className="lms-notice-item__filename">📎 {notice.fileName}</div>
-                  )}
+                  ) : null}
                 </div>
               </div>
             ))}

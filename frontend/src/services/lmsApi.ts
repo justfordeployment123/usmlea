@@ -624,9 +624,9 @@ export function generateMeetingLink(_classId: string): string {
 }
 
 export async function getClassById(classId: string): Promise<LmsClass | null> {
-  // GET /api/v1/student/classes/:classId
+  // GET /api/v1/teacher/classes/:classId
   try {
-    const res = await apiRequest<{ class: LmsClass }>(`/student/classes/${classId}`, bearer(getStudentToken()))
+    const res = await apiRequest<{ class: LmsClass }>(`/teacher/classes/${classId}`, bearer(getTeacherToken()))
     return { ...res.class, enrolledStudentIds: [] }
   } catch { return null }
 }
