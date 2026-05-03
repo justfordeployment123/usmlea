@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { Video, Lock, ExternalLink, ChevronLeft } from 'lucide-react'
-import { getClassById, getRecordingsForClass } from '../../services/lmsApi'
+import { studentGetClassById, getRecordingsForClass } from '../../services/lmsApi'
 import type { LmsClass, RecordedSession } from '../../types/lms'
 import DemoGate from '../../components/lms/DemoGate'
 import '../../styles/lms-student.css'
@@ -20,7 +20,7 @@ export default function RecordedSessionsPage() {
   useEffect(() => {
     if (!classId) return
     Promise.all([
-      getClassById(classId),
+      studentGetClassById(classId),
       getRecordingsForClass(classId),
     ]).then(([clsData, recData]) => {
       setCls(clsData)

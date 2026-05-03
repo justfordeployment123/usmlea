@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import {
-  getClassById,
+  studentGetClassById,
   studentGetSessionsForClass,
   getNoticesForClass,
 } from '../../services/lmsApi'
@@ -59,7 +59,7 @@ export default function LiveSessionPage() {
     if (!classId) return
     async function load() {
       const [clsData, sessionData, noticeData] = await Promise.all([
-        getClassById(classId!),
+        studentGetClassById(classId!),
         studentGetSessionsForClass(classId!),
         getNoticesForClass(classId!),
       ])

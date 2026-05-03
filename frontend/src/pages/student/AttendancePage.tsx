@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { CheckCircle2, XCircle, MinusCircle, ChevronLeft, TrendingUp } from 'lucide-react'
-import { getClassById, getAttendanceForClass } from '../../services/lmsApi'
+import { studentGetClassById, getAttendanceForClass } from '../../services/lmsApi'
 import { useStudentAuth } from '../../context/StudentAuthContext'
 import type { AttendanceRecord, LmsClass } from '../../types/lms'
 import '../../styles/lms-student.css'
@@ -25,7 +25,7 @@ export default function AttendancePage() {
   useEffect(() => {
     if (!classId || !user?.id) return
     Promise.all([
-      getClassById(classId),
+      studentGetClassById(classId),
       getAttendanceForClass(classId, user.id),
     ]).then(([clsData, recData]) => {
       setCls(clsData)

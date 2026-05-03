@@ -631,6 +631,14 @@ export async function getClassById(classId: string): Promise<LmsClass | null> {
   } catch { return null }
 }
 
+export async function studentGetClassById(classId: string): Promise<LmsClass | null> {
+  // GET /api/v1/student/classes/:classId
+  try {
+    const res = await apiRequest<{ class: LmsClass }>(`/student/classes/${classId}`, bearer(getStudentToken()))
+    return { ...res.class, enrolledStudentIds: [] }
+  } catch { return null }
+}
+
 export async function getAllClassesWithProducts(): Promise<ClassWithProduct[]> {
   // GET /api/v1/admin/classes
   const res = await apiRequest<{ classes: ClassWithProduct[] }>('/admin/classes', bearer(getAdminToken()))
