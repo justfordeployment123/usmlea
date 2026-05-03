@@ -1,8 +1,9 @@
 /* eslint-disable react-refresh/only-export-components */
-import React, { createContext, useContext, useState } from 'react'
+import React, { createContext, useContext, useEffect, useState } from 'react'
 import { safeParseJson } from '../services/errorUtils'
 import { logWarn } from '../services/observability'
 import { loginAdmin } from '../services/authApi'
+import { isSessionExpired, refreshSession } from '../services/lmsApi'
 
 interface AdminUser {
   id: string
@@ -90,6 +91,22 @@ function loadInitialAdmin(): AdminUser | null {
 
 export const AdminAuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [admin, setAdmin] = useState<AdminUser | null>(() => loadInitialAdmin())
+
+  useEffect(() => {
+    if (!admin) return
+    const tryRefresh = async () => {
+      if (!isSessionExpired(ADMIN_AUTH_KEY)) return
+      const newToken = await refreshSession(ADMIN_AUTH_KEY)
+      if (!newToken) {
+        localStorage.removeItem(ADMIN_AUTH_KEY)
+        localStorage.removeItem(LEGACY_ADMIN_KEY)
+        setAdmin(null)
+      }
+    }
+    tryRefresh()
+    const id = setInterval(tryRefresh, 10 * 60 * 1000)
+    return () => clearInterval(id)
+  }, [admin])
 
   const login = async (email: string, password: string): Promise<AdminUser> => {
     const response = await loginAdmin({

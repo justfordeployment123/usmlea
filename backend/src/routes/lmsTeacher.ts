@@ -344,6 +344,72 @@ lmsTeacherRouter.patch('/teacher/sessions/:id/missed', authenticateRequest, requ
   }
 )
 
+// ─── GET /api/v1/teacher/classes/:classId/students ───────────────────────────
+lmsTeacherRouter.get('/teacher/classes/:classId/students', authenticateRequest, requireRole('teacher'),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const teacherId = req.auth!.userId
+
+      const { data: cls } = await supabaseServiceClient
+        .from('lms_classes').select('id').eq('id', req.params.classId).eq('teacher_id', teacherId).single()
+      if (!cls) throw new HttpError(403, 'FORBIDDEN', 'Class not found or not yours.')
+
+      const { data: enrollments, error } = await supabaseServiceClient
+        .from('lms_enrollments')
+        .select('student_id, enrolled_at, demo_expires_at')
+        .eq('class_id', req.params.classId)
+
+      if (error) throw new HttpError(500, 'FETCH_FAILED', error.message)
+
+      const studentIds = (enrollments ?? []).map(e => e.student_id)
+
+      const [profilesResult, sessionsResult] = await Promise.all([
+        studentIds.length
+          ? supabaseServiceClient.from('profiles').select('id, full_name, email').in('id', studentIds)
+          : { data: [], error: null },
+        supabaseServiceClient.from('lms_sessions').select('id').eq('class_id', req.params.classId).eq('status', 'completed'),
+      ])
+
+      const profileMap: Record<string, { full_name: string; email: string }> = {}
+      ;(profilesResult.data ?? []).forEach(p => { profileMap[p.id] = p })
+
+      const sessionIds = (sessionsResult.data ?? []).map(s => s.id)
+
+      const { data: attendanceRows } = sessionIds.length
+        ? await supabaseServiceClient
+            .from('lms_attendance_records')
+            .select('student_id, status')
+            .in('student_id', studentIds)
+            .in('session_id', sessionIds)
+        : { data: [] }
+
+      const attendedByStudent: Record<string, number> = {}
+      ;(attendanceRows ?? []).forEach(r => {
+        if (r.status === 'attended') {
+          attendedByStudent[r.student_id] = (attendedByStudent[r.student_id] ?? 0) + 1
+        }
+      })
+
+      const now = new Date()
+      const result = (enrollments ?? []).map(e => {
+        const expires = e.demo_expires_at ? new Date(e.demo_expires_at) : null
+        const accessType = expires === null ? 'full' : expires > now ? 'demo_active' : 'demo_expired'
+        return {
+          studentId: e.student_id,
+          studentName: profileMap[e.student_id]?.full_name ?? '',
+          studentEmail: profileMap[e.student_id]?.email ?? '',
+          enrolledAt: e.enrolled_at,
+          accessType,
+          attendedCount: attendedByStudent[e.student_id] ?? 0,
+          totalSessions: sessionIds.length,
+        }
+      })
+
+      return res.status(200).json({ students: result })
+    } catch (err) { return next(err) }
+  }
+)
+
 // ─── GET /api/v1/teacher/classes/:classId/notices ────────────────────────────
 lmsTeacherRouter.get('/teacher/classes/:classId/notices', authenticateRequest, requireRole('teacher'),
   async (req: Request, res: Response, next: NextFunction) => {

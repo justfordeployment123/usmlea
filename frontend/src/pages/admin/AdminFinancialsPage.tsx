@@ -1,123 +1,174 @@
-import { useState } from 'react'
-import {
-  Area,
-  AreaChart,
-  Bar,
-  BarChart,
-  CartesianGrid,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from 'recharts'
-import {
-  ADMIN_FINANCIAL_KPIS,
-  ADMIN_INVOICE_STATUSES,
-  ADMIN_PLAN_MIX,
-  ADMIN_REVENUE_TREND,
-} from '../../data/adminMetricsFinancials'
+import { useEffect, useMemo, useState } from 'react'
+import { RotateCcw } from 'lucide-react'
+import { adminGetOrders, adminRefundOrder } from '../../services/lmsApi'
+import type { LmsOrder } from '../../types/lms'
 import '../../styles/admin-metrics-financials.css'
 
+function fmt(cents: number) {
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(cents)
+}
+
+function fmtDate(iso: string | null) {
+  if (!iso) return '—'
+  return new Date(iso).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
+const STATUS_STYLES: Record<string, { background: string; color: string }> = {
+  paid:     { background: '#dcfce7', color: '#15803d' },
+  pending:  { background: '#fef9c3', color: '#a16207' },
+  refunded: { background: '#fee2e2', color: '#dc2626' },
+}
+
 export default function AdminFinancialsPage() {
-  const [view, setView] = useState<'monthly' | 'quarterly'>('monthly')
+  const [orders, setOrders] = useState<LmsOrder[]>([])
+  const [loading, setLoading] = useState(true)
+  const [refunding, setRefunding] = useState<string | null>(null)
+  const [toast, setToast] = useState<string | null>(null)
+
+  useEffect(() => {
+    adminGetOrders().then(data => { setOrders(data); setLoading(false) })
+  }, [])
+
+  const kpis = useMemo(() => {
+    const paid = orders.filter(o => o.status === 'paid')
+    const refunded = orders.filter(o => o.status === 'refunded')
+    const totalRevenue = paid.reduce((sum, o) => sum + o.amountPaid, 0)
+    const totalRefunded = refunded.reduce((sum, o) => sum + o.amountPaid, 0)
+    return {
+      totalRevenue,
+      paidCount: paid.length,
+      refundedAmount: totalRefunded,
+      pendingCount: orders.filter(o => o.status === 'pending').length,
+    }
+  }, [orders])
+
+  function showToast(msg: string) {
+    setToast(msg)
+    setTimeout(() => setToast(null), 3000)
+  }
+
+  async function handleRefund(orderId: string) {
+    if (!confirm('Issue a refund for this order? This will revoke the student\'s class access.')) return
+    setRefunding(orderId)
+    try {
+      await adminRefundOrder(orderId)
+      setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: 'refunded' } : o))
+      showToast('Refund issued ✓')
+    } catch {
+      showToast('Refund failed — check Stripe dashboard')
+    } finally {
+      setRefunding(null)
+    }
+  }
 
   return (
     <div className="admin-financials-page">
       <header className="admin-metrics-header">
         <h1>Financials</h1>
-        <p>Revenue health, subscription dynamics, and payment reliability snapshots.</p>
+        <p>Revenue, orders, and payment status from Stripe.</p>
       </header>
 
-      <section className="admin-metrics-controls card">
-        <label htmlFor="admin-financials-view">View</label>
-        <select id="admin-financials-view" value={view} onChange={event => setView(event.target.value as typeof view)}>
-          <option value="monthly">Monthly</option>
-          <option value="quarterly">Quarterly</option>
-        </select>
-        <span className="admin-metrics-controls__hint">Stripe webhook-backed figures (dummy in this phase).</span>
-      </section>
-
       <section className="admin-financials-kpis">
-        {ADMIN_FINANCIAL_KPIS.map(kpi => (
-          <article className="admin-financials-kpi" key={kpi.id}>
-            <h4>{kpi.label}</h4>
-            <p className="value">{kpi.value}</p>
-            <p className={`delta ${kpi.trend}`}>{kpi.delta}</p>
-          </article>
-        ))}
+        <article className="admin-financials-kpi">
+          <h4>Total Revenue</h4>
+          <p className="value">{fmt(kpis.totalRevenue)}</p>
+          <p className="delta up">{kpis.paidCount} paid orders</p>
+        </article>
+        <article className="admin-financials-kpi">
+          <h4>Refunded</h4>
+          <p className="value">{fmt(kpis.refundedAmount)}</p>
+          <p className="delta down">{orders.filter(o => o.status === 'refunded').length} refunds</p>
+        </article>
+        <article className="admin-financials-kpi">
+          <h4>Net Revenue</h4>
+          <p className="value">{fmt(kpis.totalRevenue - kpis.refundedAmount)}</p>
+          <p className="delta neutral">after refunds</p>
+        </article>
+        <article className="admin-financials-kpi">
+          <h4>Pending</h4>
+          <p className="value">{kpis.pendingCount}</p>
+          <p className="delta neutral">awaiting payment</p>
+        </article>
       </section>
 
-      <section className="admin-metrics-grid">
-        <article className="card admin-metrics-panel">
-          <h3>Revenue + MRR Trend</h3>
-          <p>Tracks topline revenue and recurring baseline over time.</p>
-          <div className="admin-metrics-chart-wrap">
-            <div className="admin-metrics-chart-canvas">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={ADMIN_REVENUE_TREND}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#EEF2FF" />
-                  <XAxis dataKey="month" tick={{ fill: '#6B7280', fontSize: 12 }} />
-                  <YAxis tick={{ fill: '#6B7280', fontSize: 12 }} />
-                  <Tooltip />
-                  <Area type="monotone" dataKey="revenue" stroke="#3730A3" fill="#3730A333" name="Revenue" />
-                  <Area type="monotone" dataKey="mrr" stroke="#4fa5df" fill="#4fa5df22" name="MRR" />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-        </article>
-
-        <article className="card admin-metrics-panel">
-          <h3>Subscription Plan Mix</h3>
-          <p>Paid user concentration by plan type.</p>
-          <div className="admin-metrics-chart-wrap">
-            <div className="admin-metrics-chart-canvas">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={ADMIN_PLAN_MIX}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#EEF2FF" />
-                  <XAxis dataKey="plan" tick={{ fill: '#6B7280', fontSize: 12 }} />
-                  <YAxis tick={{ fill: '#6B7280', fontSize: 12 }} />
-                  <Tooltip />
-                  <Bar dataKey="subscribers" fill="#3730A3" radius={[8, 8, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-        </article>
-
+      <section className="admin-metrics-grid" style={{ gridTemplateColumns: '1fr' }}>
         <article className="card admin-metrics-panel admin-financials-invoices">
-          <h3>Payment Reconciliation Feed</h3>
-          <p>Latest invoice outcomes from billing gateway sync.</p>
-          <div className="admin-metrics-table-wrap">
-            <table className="admin-metrics-table">
-              <thead>
-                <tr>
-                  <th>Invoice</th>
-                  <th>Student</th>
-                  <th>Amount</th>
-                  <th>Status</th>
-                  <th>Gateway</th>
-                  <th>Updated</th>
-                </tr>
-              </thead>
-              <tbody>
-                {ADMIN_INVOICE_STATUSES.map(row => (
-                  <tr key={row.id}>
-                    <td>{row.id}</td>
-                    <td>{row.student}</td>
-                    <td>{row.amount}</td>
-                    <td>
-                      <span className={`admin-financials-status ${row.status}`}>{row.status}</span>
-                    </td>
-                    <td>{row.gateway}</td>
-                    <td>{row.updatedAt}</td>
+          <h3>Order History</h3>
+          <p>All orders from newest to oldest. Paid orders can be refunded here.</p>
+
+          {loading ? (
+            <div style={{ padding: '24px 0', color: '#6B7280', fontSize: '0.9rem' }}>Loading orders…</div>
+          ) : orders.length === 0 ? (
+            <div style={{ padding: '24px 0', color: '#9CA3AF', fontSize: '0.9rem' }}>No orders yet.</div>
+          ) : (
+            <div className="admin-metrics-table-wrap">
+              <table className="admin-metrics-table">
+                <thead>
+                  <tr>
+                    <th>Student</th>
+                    <th>Product</th>
+                    <th>Plan</th>
+                    <th>Amount</th>
+                    <th>Status</th>
+                    <th>Paid At</th>
+                    <th></th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {orders.map(order => (
+                    <tr key={order.id}>
+                      <td>
+                        <div style={{ fontWeight: 600, color: '#1E1B4B', fontSize: '0.85rem' }}>{order.studentName || '—'}</div>
+                        <div style={{ fontSize: '0.75rem', color: '#6B7280' }}>{order.studentEmail}</div>
+                      </td>
+                      <td style={{ fontSize: '0.85rem', color: '#374151' }}>{order.productName || '—'}</td>
+                      <td style={{ fontSize: '0.82rem', color: '#6B7280', textTransform: 'capitalize' }}>{order.plan}</td>
+                      <td style={{ fontWeight: 700, color: '#1E1B4B', fontSize: '0.87rem' }}>
+                        {fmt(order.amountPaid)}
+                        {order.plan === 'installment' && (
+                          <span style={{ fontSize: '0.72rem', fontWeight: 400, color: '#6B7280', marginLeft: 3 }}>/mo</span>
+                        )}
+                      </td>
+                      <td>
+                        <span style={{
+                          padding: '2px 8px', borderRadius: 99, fontSize: '0.75rem', fontWeight: 700,
+                          ...STATUS_STYLES[order.status],
+                        }}>
+                          {order.status}
+                        </span>
+                      </td>
+                      <td style={{ fontSize: '0.82rem', color: '#6B7280' }}>{fmtDate(order.paidAt)}</td>
+                      <td>
+                        {order.status === 'paid' && (
+                          <button
+                            disabled={refunding === order.id}
+                            onClick={() => handleRefund(order.id)}
+                            style={{
+                              display: 'inline-flex', alignItems: 'center', gap: 4,
+                              padding: '4px 10px', fontSize: '0.75rem', fontWeight: 600,
+                              background: '#fee2e2', color: '#dc2626', border: '1px solid #fca5a5',
+                              borderRadius: 6, cursor: 'pointer', opacity: refunding === order.id ? 0.6 : 1,
+                            }}
+                          >
+                            <RotateCcw size={11} />
+                            {refunding === order.id ? 'Refunding…' : 'Refund'}
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </article>
       </section>
+
+      {toast && (
+        <div style={{ position: 'fixed', bottom: 24, right: 24, background: '#1E1B4B', color: '#fff', padding: '10px 18px', borderRadius: 10, fontSize: '0.87rem', fontWeight: 600, zIndex: 2000, boxShadow: '0 4px 16px rgba(0,0,0,0.2)' }}>
+          {toast}
+        </div>
+      )}
     </div>
   )
 }

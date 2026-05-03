@@ -27,7 +27,6 @@ interface ProductFormState {
   name: string
   description: string
   upfrontPrice: string
-  installmentAmount: string
   installmentMonths: string
   isActive: boolean
 }
@@ -36,7 +35,6 @@ const emptyForm: ProductFormState = {
   name: '',
   description: '',
   upfrontPrice: '',
-  installmentAmount: '',
   installmentMonths: '12',
   isActive: true,
 }
@@ -83,7 +81,6 @@ export default function AdminProductsPage() {
       name: product.name,
       description: product.description,
       upfrontPrice: String(product.upfrontPrice),
-      installmentAmount: String(product.installmentAmount),
       installmentMonths: String(product.installmentMonths),
       isActive: product.isActive,
     })
@@ -99,11 +96,10 @@ export default function AdminProductsPage() {
     setFormError('')
     if (!form.name.trim()) { setFormError('Product name is required.'); return }
     const upfront = Number(form.upfrontPrice)
-    const installment = Number(form.installmentAmount)
     const months = Number(form.installmentMonths)
-    if (isNaN(upfront) || upfront < 0) { setFormError('Invalid upfront price.'); return }
-    if (isNaN(installment) || installment < 0) { setFormError('Invalid installment amount.'); return }
-    if (isNaN(months) || months < 1) { setFormError('Invalid installment months.'); return }
+    if (isNaN(upfront) || upfront <= 0) { setFormError('Upfront price must be greater than 0.'); return }
+    if (isNaN(months) || months < 1) { setFormError('Installment months must be at least 1.'); return }
+    const installment = Math.round((upfront / months) * 100) / 100
 
     setFormSubmitting(true)
     try {
@@ -359,7 +355,7 @@ export default function AdminProductsPage() {
                   <label style={{ fontSize: '0.83rem', fontWeight: 600, color: '#3730A3' }}>Upfront Price ($)</label>
                   <input
                     type="number"
-                    min={0}
+                    min={1}
                     style={{ border: '1.5px solid #C7D2FE', borderRadius: 10, padding: '8px 12px', fontSize: '0.9rem', color: '#1E1B4B', background: '#F9FAFB', outline: 'none', fontFamily: 'inherit' }}
                     placeholder="e.g. 2500"
                     value={form.upfrontPrice}
@@ -367,29 +363,30 @@ export default function AdminProductsPage() {
                   />
                 </div>
                 <div style={{ display: 'grid', gap: 6 }}>
-                  <label style={{ fontSize: '0.83rem', fontWeight: 600, color: '#3730A3' }}>Monthly Installment ($)</label>
+                  <label style={{ fontSize: '0.83rem', fontWeight: 600, color: '#3730A3' }}>Installment Months</label>
                   <input
                     type="number"
-                    min={0}
+                    min={1}
+                    max={60}
                     style={{ border: '1.5px solid #C7D2FE', borderRadius: 10, padding: '8px 12px', fontSize: '0.9rem', color: '#1E1B4B', background: '#F9FAFB', outline: 'none', fontFamily: 'inherit' }}
-                    placeholder="e.g. 250"
-                    value={form.installmentAmount}
-                    onChange={e => updateForm('installmentAmount', e.target.value)}
+                    value={form.installmentMonths}
+                    onChange={e => updateForm('installmentMonths', e.target.value)}
                   />
                 </div>
               </div>
 
-              <div style={{ display: 'grid', gap: 6 }}>
-                <label style={{ fontSize: '0.83rem', fontWeight: 600, color: '#3730A3' }}>Installment Months</label>
-                <input
-                  type="number"
-                  min={1}
-                  max={60}
-                  style={{ border: '1.5px solid #C7D2FE', borderRadius: 10, padding: '8px 12px', fontSize: '0.9rem', color: '#1E1B4B', background: '#F9FAFB', outline: 'none', fontFamily: 'inherit', maxWidth: 120 }}
-                  value={form.installmentMonths}
-                  onChange={e => updateForm('installmentMonths', e.target.value)}
-                />
-              </div>
+              {(() => {
+                const upfront = Number(form.upfrontPrice)
+                const months = Number(form.installmentMonths)
+                const monthly = (upfront > 0 && months > 0) ? (Math.round((upfront / months) * 100) / 100) : null
+                return monthly !== null ? (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: '#EEF2FF', border: '1px solid #C7D2FE', borderRadius: 8 }}>
+                    <span style={{ fontSize: '0.82rem', color: '#6B7280' }}>Monthly installment:</span>
+                    <span style={{ fontSize: '0.9rem', fontWeight: 700, color: '#3730A3' }}>${monthly}/mo × {months}</span>
+                    <span style={{ fontSize: '0.78rem', color: '#94A3B8', marginLeft: 'auto' }}>total ${upfront}</span>
+                  </div>
+                ) : null
+              })()}
 
               <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: '0.87rem', fontWeight: 600, color: '#3730A3' }}>
                 <input

@@ -5,6 +5,7 @@ import {
   getClassById,
   getTeacherSessions,
   getNoticesForClass,
+  teacherGetClassStudents,
   startSession,
   endSession,
   cancelSession,
@@ -14,7 +15,7 @@ import {
   updateSessionRecording,
   removeSessionRecording,
 } from '../../services/lmsApi'
-import type { LmsSession, Notice, LmsClass } from '../../types/lms'
+import type { LmsSession, Notice, LmsClass, TeacherStudentSummary } from '../../types/lms'
 import '../../styles/teacher.css'
 import {
   Clock,
@@ -34,11 +35,6 @@ import {
 type SessionFilter = 'all' | 'scheduled' | 'live' | 'completed' | 'cancelled'
 type Tab = 'sessions' | 'students' | 'notices' | 'recordings'
 
-const MOCK_STUDENTS = [
-  { id: 's1', name: 'Student A', joined: '2026-01-15', attended: 8, total: 10 },
-  { id: 's2', name: 'Student B', joined: '2026-01-17', attended: 7, total: 10 },
-  { id: 's3', name: 'Student C', joined: '2026-01-20', attended: 9, total: 10 },
-]
 
 function formatDateTime(dateStr: string): string {
   const d = new Date(dateStr)
@@ -78,6 +74,7 @@ export default function TeacherClassDetailPage() {
   const [cls, setCls] = useState<LmsClass | null>(null)
   const [sessions, setSessions] = useState<LmsSession[]>([])
   const [notices, setNotices] = useState<Notice[]>([])
+  const [students, setStudents] = useState<TeacherStudentSummary[]>([])
   const [loading, setLoading] = useState(true)
 
   const initialTab = (searchParams.get('tab') as Tab) || 'sessions'
@@ -109,14 +106,16 @@ export default function TeacherClassDetailPage() {
     if (!classId || !teacher) return
     async function load() {
       if (!classId) return
-      const [clsData, sessData, noticeData] = await Promise.all([
+      const [clsData, sessData, noticeData, studData] = await Promise.all([
         getClassById(classId),
         getTeacherSessions(classId),
         getNoticesForClass(classId),
+        teacherGetClassStudents(classId),
       ])
       setCls(clsData)
       setSessions(sessData)
       setNotices(noticeData)
+      setStudents(studData)
       setLoading(false)
     }
     load()
@@ -399,7 +398,7 @@ export default function TeacherClassDetailPage() {
           {/* Students Tab */}
           {activeTab === 'students' && (
             <>
-              {MOCK_STUDENTS.length === 0 ? (
+              {students.length === 0 ? (
                 <div className="teacher-empty-state">
                   <Users size={32} />
                   <p>No students enrolled yet.</p>
@@ -409,31 +408,42 @@ export default function TeacherClassDetailPage() {
                   <thead>
                     <tr>
                       <th>Name</th>
-                      <th>Joined</th>
+                      <th>Email</th>
+                      <th>Enrolled</th>
+                      <th>Access</th>
                       <th>Attendance</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {MOCK_STUDENTS.map(student => (
-                      <tr key={student.id}>
-                        <td style={{ fontWeight: 600, color: '#1E1B4B' }}>{student.name}</td>
-                        <td>{formatDate(student.joined)}</td>
+                    {students.map(student => (
+                      <tr key={student.studentId}>
+                        <td style={{ fontWeight: 600, color: '#1E1B4B' }}>{student.studentName || '—'}</td>
+                        <td style={{ color: '#6B7280', fontSize: '0.82rem' }}>{student.studentEmail}</td>
+                        <td>{formatDate(student.enrolledAt)}</td>
                         <td>
-                          <span style={{ fontWeight: 700 }}>
-                            {student.attended}/{student.total}
+                          <span style={{
+                            padding: '2px 8px', borderRadius: 99, fontSize: '0.72rem', fontWeight: 700,
+                            background: student.accessType === 'full' ? '#dcfce7' : student.accessType === 'demo_active' ? '#fef9c3' : '#fee2e2',
+                            color: student.accessType === 'full' ? '#15803d' : student.accessType === 'demo_active' ? '#a16207' : '#dc2626',
+                          }}>
+                            {student.accessType === 'full' ? 'Full' : student.accessType === 'demo_active' ? 'Demo' : 'Expired'}
                           </span>
-                          <span style={{ fontSize: '0.75rem', color: '#6B7280', marginLeft: 4 }}>
-                            ({Math.round((student.attended / student.total) * 100)}%)
-                          </span>
+                        </td>
+                        <td>
+                          {student.totalSessions > 0 ? (
+                            <>
+                              <span style={{ fontWeight: 700 }}>{student.attendedCount}/{student.totalSessions}</span>
+                              <span style={{ fontSize: '0.75rem', color: '#6B7280', marginLeft: 4 }}>
+                                ({Math.round((student.attendedCount / student.totalSessions) * 100)}%)
+                              </span>
+                            </>
+                          ) : '—'}
                         </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               )}
-              <p style={{ fontSize: '0.75rem', color: '#6B7280', marginTop: 8 }}>
-                Student names are anonymized for privacy. Full details available after backend integration.
-              </p>
             </>
           )}
 

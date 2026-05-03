@@ -428,3 +428,85 @@ lmsStudentRouter.get('/student/orders', authenticateRequest, requireRole('studen
     } catch (err) { return next(err) }
   }
 )
+
+// ─── GET /api/v1/student/enrollment-overview ─────────────────────────────────
+// Returns ALL enrollments (including expired demo) so the programs page
+// can show the correct state per product without a separate payment check.
+lmsStudentRouter.get('/student/enrollment-overview', authenticateRequest, requireRole('student'),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const studentId = req.auth!.userId
+
+      const { data, error } = await supabaseServiceClient
+        .from('lms_enrollments')
+        .select('class_id, enrolled_at, demo_expires_at, lms_classes!inner(product_id)')
+        .eq('student_id', studentId)
+
+      if (error) throw new HttpError(500, 'FETCH_FAILED', error.message)
+
+      const now = new Date()
+      const result = (data ?? []).map(e => {
+        const expires = e.demo_expires_at ? new Date(e.demo_expires_at) : null
+        const accessType = expires === null ? 'full' : expires > now ? 'demo_active' : 'demo_expired'
+        return {
+          classId: e.class_id,
+          productId: (e.lms_classes as any).product_id,
+          accessType,
+          demoExpiresAt: e.demo_expires_at ?? null,
+          enrolledAt: e.enrolled_at,
+        }
+      })
+
+      return res.status(200).json({ enrollments: result })
+    } catch (err) { return next(err) }
+  }
+)
+
+// ─── POST /api/v1/student/programs/:productId/demo ───────────────────────────
+lmsStudentRouter.post('/student/programs/:productId/demo', authenticateRequest, requireRole('student'),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const studentId = req.auth!.userId
+      const { productId } = req.params as { productId: string }
+
+      // Verify product exists and is active
+      const { data: product } = await supabaseServiceClient
+        .from('lms_products').select('id, name').eq('id', productId).eq('is_active', true).single()
+      if (!product) throw new HttpError(404, 'PRODUCT_NOT_FOUND', 'Program not found or inactive.')
+
+      // Find first available class for this product
+      const { data: cls } = await supabaseServiceClient
+        .from('lms_classes').select('id').eq('product_id', productId).limit(1).single()
+      if (!cls) throw new HttpError(404, 'NO_CLASS', 'No class available for this program yet.')
+
+      // Block if student already has any enrollment for this class (demo or paid)
+      const { data: existing } = await supabaseServiceClient
+        .from('lms_enrollments')
+        .select('class_id, demo_expires_at')
+        .eq('student_id', studentId)
+        .eq('class_id', cls.id)
+        .single()
+
+      if (existing) {
+        const expires = existing.demo_expires_at ? new Date(existing.demo_expires_at) : null
+        if (expires === null) throw new HttpError(409, 'ALREADY_ENROLLED', 'You are already enrolled in this program.')
+        if (expires > new Date()) throw new HttpError(409, 'DEMO_ACTIVE', 'You already have an active demo for this program.')
+        throw new HttpError(409, 'DEMO_EXPIRED', 'Your demo for this program has expired. Please enroll to continue.')
+      }
+
+      const demoExpiresAt = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString()
+
+      const { error } = await supabaseServiceClient
+        .from('lms_enrollments')
+        .insert({ student_id: studentId, class_id: cls.id, demo_expires_at: demoExpiresAt })
+
+      if (error) throw new HttpError(500, 'DEMO_FAILED', error.message)
+
+      return res.status(201).json({
+        classId: cls.id,
+        demoExpiresAt,
+        message: `Demo access granted for ${product.name}. Expires in 2 days.`,
+      })
+    } catch (err) { return next(err) }
+  }
+)

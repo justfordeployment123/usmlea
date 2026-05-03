@@ -5,7 +5,7 @@ import type Stripe from 'stripe'
 import { HttpError } from '../lib/httpError.js'
 import { authenticateRequest, requireRole } from '../middleware/authenticate.js'
 import { supabaseServiceClient } from '../lib/supabase.js'
-import { stripe, createPaymentIntent } from '../lib/stripe.js'
+import { stripe, createPaymentIntent, getOrCreateStripeCustomer, createMonthlySubscription } from '../lib/stripe.js'
 import { notifyStudent } from '../lib/notify.js'
 import { env } from '../config/env.js'
 
@@ -63,15 +63,16 @@ lmsPaymentsRouter.post('/payments/checkout', authenticateRequest, requireRole('s
 
       amountPaid = Math.round(amountPaid * 100) / 100
 
-      const { data: existingOrder } = await supabaseServiceClient
-        .from('lms_orders')
-        .select('id')
+      // Check lms_enrollments (not orders) — orders are payment records; enrollment is the access source of truth
+      const { data: existingEnrollment } = await supabaseServiceClient
+        .from('lms_enrollments')
+        .select('lms_classes!inner(product_id)')
         .eq('student_id', studentId)
-        .eq('product_id', parsed.productId)
-        .eq('status', 'paid')
-        .single()
+        .eq('lms_classes.product_id', parsed.productId)
+        .is('demo_expires_at', null)
+        .maybeSingle()
 
-      if (existingOrder) throw new HttpError(409, 'ALREADY_ENROLLED', 'You are already enrolled in this program.')
+      if (existingEnrollment) throw new HttpError(409, 'ALREADY_ENROLLED', 'You are already enrolled in this program.')
 
       const { data: order, error: orderError } = await supabaseServiceClient
         .from('lms_orders')
@@ -87,11 +88,36 @@ lmsPaymentsRouter.post('/payments/checkout', authenticateRequest, requireRole('s
 
       if (orderError || !order) throw new HttpError(500, 'ORDER_FAILED', orderError?.message ?? 'Failed to create order.')
 
-      const clientSecret = await createPaymentIntent(Math.round(amountPaid * 100), {
-        studentId,
-        productId: parsed.productId,
-        orderId: order.id,
-      })
+      let clientSecret: string
+      let subscriptionId: string | null = null
+
+      if (parsed.plan === 'installment') {
+        // Installment: Stripe Subscription for recurring monthly billing
+        const { data: profile } = await supabaseServiceClient
+          .from('profiles').select('email').eq('id', studentId).single()
+        if (!profile?.email) throw new HttpError(400, 'NO_EMAIL', 'Student email not found.')
+
+        const customerId = await getOrCreateStripeCustomer(studentId, profile.email)
+        const result = await createMonthlySubscription(
+          customerId,
+          Math.round(amountPaid * 100),
+          { studentId, productId: parsed.productId, orderId: order.id, installmentMonths: product.installment_months ?? 1 }
+        )
+        subscriptionId = result.subscriptionId
+        clientSecret = result.clientSecret
+
+        await supabaseServiceClient
+          .from('lms_orders')
+          .update({ stripe_subscription_id: subscriptionId })
+          .eq('id', order.id)
+      } else {
+        // Upfront: single payment intent
+        clientSecret = await createPaymentIntent(Math.round(amountPaid * 100), {
+          studentId,
+          productId: parsed.productId,
+          orderId: order.id,
+        })
+      }
 
       // Dev mode: auto-enroll immediately when no real webhook is configured
       if (env.STRIPE_WEBHOOK_SECRET === 'whsec_placeholder') {
@@ -115,6 +141,8 @@ lmsPaymentsRouter.post('/payments/checkout', authenticateRequest, requireRole('s
           await supabaseServiceClient
             .from('lms_enrollments')
             .upsert({ student_id: studentId, class_id: targetClassId, demo_expires_at: null }, { onConflict: 'student_id,class_id' })
+          await supabaseServiceClient
+            .from('lms_orders').update({ class_id: targetClassId }).eq('id', order.id)
         }
         if (couponId) {
           const { data: couponRow } = await supabaseServiceClient
@@ -153,8 +181,12 @@ export async function webhookHandler(req: Request, res: Response) {
     return res.status(400).send('Webhook signature verification failed')
   }
 
+  // ── Upfront: one-time payment confirmed ─────────────────────────────────────
   if (event.type === 'payment_intent.succeeded') {
-    const intent = event.data.object as Stripe.PaymentIntent
+    const intent = event.data.object as Stripe.PaymentIntent & { invoice?: string | null }
+    // Skip if this intent belongs to a subscription invoice (handled by invoice.paid)
+    if (intent.invoice) return res.json({ received: true })
+
     const orderId   = intent.metadata['orderId']
     const studentId = intent.metadata['studentId']
     const productId = intent.metadata['productId']
@@ -172,9 +204,10 @@ export async function webhookHandler(req: Request, res: Response) {
       await supabaseServiceClient
         .from('lms_enrollments')
         .upsert({ student_id: studentId, class_id: cls.id, demo_expires_at: null }, { onConflict: 'student_id,class_id' })
+      await supabaseServiceClient
+        .from('lms_orders').update({ class_id: cls.id }).eq('id', orderId)
     }
 
-    // Increment coupon uses_count if a coupon was applied to this order
     const { data: orderRow } = await supabaseServiceClient
       .from('lms_orders').select('coupon_id').eq('id', orderId).single()
     if (orderRow?.coupon_id) {
@@ -191,6 +224,141 @@ export async function webhookHandler(req: Request, res: Response) {
       type: 'enrollment_confirmed',
       title: 'Enrollment Confirmed',
       body: 'Your payment was successful. You are now enrolled in your class.',
+      classId: cls?.id,
+    })
+  }
+
+  // ── Installment: monthly invoice paid ────────────────────────────────────────
+  if (event.type === 'invoice.paid') {
+    const invoice = event.data.object as Stripe.Invoice & { subscription?: string | { id: string } | null; next_payment_attempt?: number | null }
+    const rawSub = invoice.subscription
+    const subscriptionId = typeof rawSub === 'string' ? rawSub : (rawSub as { id: string } | null)?.id ?? null
+    if (!subscriptionId) return res.json({ received: true })
+
+    const { data: order } = await supabaseServiceClient
+      .from('lms_orders')
+      .select('id, student_id, product_id, coupon_id, status')
+      .eq('stripe_subscription_id', subscriptionId)
+      .single()
+    if (!order) return res.json({ received: true })
+
+    const isFirstPayment = order.status !== 'paid'
+
+    await supabaseServiceClient
+      .from('lms_orders')
+      .update({ status: 'paid', paid_at: isFirstPayment ? new Date().toISOString() : undefined })
+      .eq('id', order.id)
+
+    const { data: cls } = await supabaseServiceClient
+      .from('lms_classes').select('id').eq('product_id', order.product_id).limit(1).single()
+
+    if (cls) {
+      // Restore access if it was revoked (re-enroll on successful payment)
+      await supabaseServiceClient
+        .from('lms_enrollments')
+        .upsert({ student_id: order.student_id, class_id: cls.id, demo_expires_at: null }, { onConflict: 'student_id,class_id' })
+      if (isFirstPayment) {
+        await supabaseServiceClient
+          .from('lms_orders').update({ class_id: cls.id }).eq('id', order.id)
+      }
+    }
+
+    if (isFirstPayment && order.coupon_id) {
+      const { data: couponRow } = await supabaseServiceClient
+        .from('lms_coupons').select('uses_count').eq('id', order.coupon_id).single()
+      if (couponRow) {
+        await supabaseServiceClient
+          .from('lms_coupons').update({ uses_count: couponRow.uses_count + 1 }).eq('id', order.coupon_id)
+      }
+    }
+
+    if (isFirstPayment) {
+      await notifyStudent({
+        studentId: order.student_id,
+        type: 'enrollment_confirmed',
+        title: 'Enrollment Confirmed',
+        body: 'Your first installment was successful. You are now enrolled in your class.',
+        classId: cls?.id,
+      })
+    }
+  }
+
+  // ── Installment: payment failed — revoke access ──────────────────────────────
+  if (event.type === 'invoice.payment_failed') {
+    const invoice = event.data.object as Stripe.Invoice & { subscription?: string | { id: string } | null; next_payment_attempt?: number | null }
+    // Only revoke when Stripe has exhausted all retries (no more retry scheduled)
+    if (invoice.next_payment_attempt != null) return res.json({ received: true })
+
+    const rawSub2 = invoice.subscription
+    const subscriptionId = typeof rawSub2 === 'string' ? rawSub2 : (rawSub2 as { id: string } | null)?.id ?? null
+    if (!subscriptionId) return res.json({ received: true })
+
+    const { data: order } = await supabaseServiceClient
+      .from('lms_orders')
+      .select('id, student_id, product_id')
+      .eq('stripe_subscription_id', subscriptionId)
+      .single()
+    if (!order) return res.json({ received: true })
+
+    // Cancel the Stripe subscription
+    await stripe.subscriptions.cancel(subscriptionId)
+
+    // Update order status
+    await supabaseServiceClient
+      .from('lms_orders')
+      .update({ status: 'refunded' })
+      .eq('id', order.id)
+
+    // Remove enrollment — student loses class access
+    const { data: cls } = await supabaseServiceClient
+      .from('lms_classes').select('id').eq('product_id', order.product_id).limit(1).single()
+    if (cls) {
+      await supabaseServiceClient
+        .from('lms_enrollments')
+        .delete()
+        .eq('student_id', order.student_id)
+        .eq('class_id', cls.id)
+    }
+
+    await notifyStudent({
+      studentId: order.student_id,
+      type: 'enrollment_confirmed',
+      title: 'Access Revoked — Payment Failed',
+      body: 'Your installment payment could not be collected after multiple attempts. Your class access has been removed. Please re-enroll to regain access.',
+      classId: cls?.id,
+    })
+  }
+
+  // ── Subscription cancelled externally (e.g. admin in Stripe dashboard) ───────
+  if (event.type === 'customer.subscription.deleted') {
+    const subscription = event.data.object as Stripe.Subscription
+    const { data: order } = await supabaseServiceClient
+      .from('lms_orders')
+      .select('id, student_id, product_id, status')
+      .eq('stripe_subscription_id', subscription.id)
+      .single()
+    if (!order || order.status !== 'paid') return res.json({ received: true })
+
+    await supabaseServiceClient
+      .from('lms_orders')
+      .update({ status: 'refunded' })
+      .eq('id', order.id)
+
+    const { data: cls } = await supabaseServiceClient
+      .from('lms_classes').select('id').eq('product_id', order.product_id).limit(1).single()
+    if (cls) {
+      await supabaseServiceClient
+        .from('lms_enrollments')
+        .delete()
+        .eq('student_id', order.student_id)
+        .eq('class_id', cls.id)
+    }
+
+    await notifyStudent({
+      studentId: order.student_id,
+      type: 'enrollment_confirmed',
+      title: 'Subscription Cancelled',
+      body: 'Your installment subscription has been cancelled and your class access has been removed.',
       classId: cls?.id,
     })
   }

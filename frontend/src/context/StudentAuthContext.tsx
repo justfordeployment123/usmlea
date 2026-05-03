@@ -161,14 +161,18 @@ export const StudentAuthProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
   useEffect(() => {
     if (!user) return
-    if (!isSessionExpired(STUDENT_KEY)) return
-    refreshSession(STUDENT_KEY).then(newToken => {
+    const tryRefresh = async () => {
+      if (!isSessionExpired(STUDENT_KEY)) return
+      const newToken = await refreshSession(STUDENT_KEY)
       if (!newToken) {
         localStorage.removeItem(STUDENT_KEY)
         setUser(null)
       }
-    })
-  }, [])
+    }
+    tryRefresh()
+    const id = setInterval(tryRefresh, 10 * 60 * 1000)
+    return () => clearInterval(id)
+  }, [user])
 
   const login = async (email: string, password: string): Promise<StudentUser> => {
     const normalizedEmail = normalizeEmail(email)

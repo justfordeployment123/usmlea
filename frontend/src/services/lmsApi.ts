@@ -14,6 +14,7 @@ import type {
   ChatMessage, AttendanceRecord, RecordedSession, Coupon,
   NotificationPrefs, LmsNotification, TeacherAnalytics,
   CreateCouponPayload, CreateClassPayload, EnrollStudentPayload, StudentEnrollment,
+  LmsOrder, TeacherStudentSummary,
 } from '../types/lms'
 
 // ─── Token helpers ────────────────────────────────────────────────────────────
@@ -271,7 +272,22 @@ export async function deleteNotice(id: string): Promise<void> {
 
 // ─── Admin — Teachers ─────────────────────────────────────────────────────────
 
-export interface StudentSummary { id: string; name: string; email: string; phone: string; registeredAt: string }
+export interface StudentSummary {
+  id: string
+  name: string
+  email: string
+  phone: string
+  registeredAt: string
+  enrollments: { classId: string; className: string; enrolledAt: string; demoExpiresAt: string | null }[]
+}
+
+export interface EnrollmentOverview {
+  classId: string
+  productId: string
+  accessType: 'full' | 'demo_active' | 'demo_expired'
+  demoExpiresAt: string | null
+  enrolledAt: string
+}
 
 export async function adminGetStudents(): Promise<StudentSummary[]> {
   const res = await apiRequest<{ students: StudentSummary[] }>('/admin/students', bearer(getAdminToken()))
@@ -635,15 +651,15 @@ export async function getGroupChatMessages(classId: string, role: 'teacher' | 's
 export async function sendGroupChatMessage(
   classId: string,
   _senderId: string,
-  senderName: string,
+  _senderName: string,
   senderRole: 'student' | 'teacher',
   text: string,
 ): Promise<ChatMessage> {
-  // POST /api/v1/chat/group
+  // POST /api/v1/chat/group — senderName is resolved server-side from auth token
   const token = senderRole === 'teacher' ? getTeacherToken() : getStudentToken()
   const res = await apiRequest<{ message: ChatMessage }>('/chat/group', {
     method: 'POST',
-    body: { classId, text, senderName },
+    body: { classId, text },
     ...bearer(token),
   })
   return res.message
@@ -873,9 +889,21 @@ export async function adminEnrollStudent(payload: EnrollStudentPayload): Promise
 }
 
 export async function adminRemoveEnrollment(classId: string, studentId: string): Promise<void> {
-  // DELETE /api/v1/admin/classes/:classId/enrollments/:studentId
   await apiRequest(`/admin/classes/${classId}/enrollments/${studentId}`, {
     method: 'DELETE',
+    ...bearer(getAdminToken()),
+  })
+}
+
+type EnrollmentOverrideAction =
+  | { type: 'extend'; days: number }
+  | { type: 'full_access' }
+  | { type: 'revoke' }
+
+export async function adminUpdateEnrollment(classId: string, studentId: string, action: EnrollmentOverrideAction): Promise<void> {
+  await apiRequest(`/admin/classes/${classId}/enrollments/${studentId}`, {
+    method: 'PATCH',
+    body: action,
     ...bearer(getAdminToken()),
   })
 }
@@ -886,4 +914,42 @@ export async function getTeacherAnalytics(_teacherId: string): Promise<TeacherAn
   // GET /api/v1/teacher/analytics
   const res = await apiRequest<{ analytics: TeacherAnalytics }>('/teacher/analytics', bearer(getTeacherToken()))
   return res.analytics
+}
+
+export async function adminGetOrders(): Promise<LmsOrder[]> {
+  // GET /api/v1/admin/orders
+  const res = await apiRequest<{ orders: LmsOrder[] }>('/admin/orders', bearer(getAdminToken()))
+  return res.orders
+}
+
+export async function adminRefundOrder(orderId: string): Promise<void> {
+  // POST /api/v1/admin/orders/:orderId/refund
+  await apiRequest(`/admin/orders/${orderId}/refund`, { method: 'POST', ...bearer(getAdminToken()) })
+}
+
+export async function studentGetEnrollmentOverview(): Promise<EnrollmentOverview[]> {
+  // GET /api/v1/student/enrollment-overview
+  const res = await apiRequest<{ enrollments: EnrollmentOverview[] }>(
+    '/student/enrollment-overview',
+    bearer(getStudentToken()),
+  )
+  return res.enrollments
+}
+
+export async function startDemoEnrollment(productId: string): Promise<{ classId: string; demoExpiresAt: string }> {
+  // POST /api/v1/student/programs/:productId/demo
+  const res = await apiRequest<{ classId: string; demoExpiresAt: string }>(
+    `/student/programs/${productId}/demo`,
+    { method: 'POST', ...bearer(getStudentToken()) },
+  )
+  return res
+}
+
+export async function teacherGetClassStudents(classId: string): Promise<TeacherStudentSummary[]> {
+  // GET /api/v1/teacher/classes/:classId/students
+  const res = await apiRequest<{ students: TeacherStudentSummary[] }>(
+    `/teacher/classes/${classId}/students`,
+    bearer(getTeacherToken()),
+  )
+  return res.students
 }

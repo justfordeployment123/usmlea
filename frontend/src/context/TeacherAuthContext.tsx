@@ -53,8 +53,9 @@ export const TeacherAuthProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
   useEffect(() => {
     if (!teacher) return
-    if (!isSessionExpired(TEACHER_AUTH_KEY)) return
-    refreshSession(TEACHER_AUTH_KEY).then(newToken => {
+    const tryRefresh = async () => {
+      if (!isSessionExpired(TEACHER_AUTH_KEY)) return
+      const newToken = await refreshSession(TEACHER_AUTH_KEY)
       if (newToken) {
         setSession({ accessToken: newToken })
       } else {
@@ -62,8 +63,11 @@ export const TeacherAuthProvider: React.FC<{ children: React.ReactNode }> = ({ c
         setTeacher(null)
         setSession(null)
       }
-    })
-  }, [])
+    }
+    tryRefresh()
+    const id = setInterval(tryRefresh, 10 * 60 * 1000)
+    return () => clearInterval(id)
+  }, [teacher])
 
   const persist = (t: Teacher, token: string) => {
     const raw = localStorage.getItem(TEACHER_AUTH_KEY)

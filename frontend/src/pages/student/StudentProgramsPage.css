@@ -215,6 +215,33 @@
   background: #0a2349;
 }
 
+.program-card__demo-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: #fff;
+  color: #3730A3;
+  font-size: 0.85rem;
+  font-weight: 600;
+  padding: 10px 18px;
+  border-radius: 9px;
+  border: 1.5px solid #C7D2FE;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.program-card__demo-btn:hover {
+  background: #EEF2FF;
+  border-color: #3730A3;
+}
+
+.program-card__demo-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 @media (max-width: 640px) {
   .programs-page { padding: 16px; }
   .programs-grid { grid-template-columns: 1fr; }

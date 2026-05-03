@@ -546,6 +546,42 @@ lmsAdminRouter.delete('/admin/classes/:classId/enrollments/:studentId', authenti
   }
 )
 
+// ─── PATCH /api/v1/admin/classes/:classId/enrollments/:studentId ──────────────
+const enrollmentOverrideSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('extend'),      days: z.number().int().min(1).max(365) }),
+  z.object({ type: z.literal('full_access') }),
+  z.object({ type: z.literal('revoke') }),
+])
+
+lmsAdminRouter.patch('/admin/classes/:classId/enrollments/:studentId', authenticateRequest, requireRole('admin'),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const action = enrollmentOverrideSchema.parse(req.body)
+      const { classId, studentId } = req.params
+
+      let demoExpiresAt: string | null
+      if (action.type === 'full_access') {
+        demoExpiresAt = null
+      } else if (action.type === 'revoke') {
+        demoExpiresAt = new Date().toISOString()
+      } else {
+        const d = new Date()
+        d.setDate(d.getDate() + action.days)
+        demoExpiresAt = d.toISOString()
+      }
+
+      const { error } = await supabaseServiceClient
+        .from('lms_enrollments')
+        .update({ demo_expires_at: demoExpiresAt })
+        .eq('class_id', classId)
+        .eq('student_id', studentId)
+
+      if (error) throw new HttpError(500, 'UPDATE_FAILED', error.message)
+      return res.status(200).json({ classId, studentId, demoExpiresAt })
+    } catch (err) { return next(err) }
+  }
+)
+
 // ─── GET /api/v1/admin/sessions ──────────────────────────────────────────────
 lmsAdminRouter.get('/admin/sessions', authenticateRequest, requireRole('admin'),
   async (req: Request, res: Response, next: NextFunction) => {
@@ -675,6 +711,37 @@ lmsAdminRouter.get('/admin/students', authenticateRequest, requireRole('admin'),
 
       if (error) throw error
 
+      const studentIds = (data ?? []).map(s => s.id)
+
+      const { data: enrollments } = studentIds.length
+        ? await supabaseServiceClient
+            .from('lms_enrollments')
+            .select('student_id, class_id, enrolled_at, demo_expires_at')
+            .in('student_id', studentIds)
+        : { data: [] }
+
+      const classIds = [...new Set((enrollments ?? []).map(e => e.class_id))]
+      const { data: classes } = classIds.length
+        ? await supabaseServiceClient
+            .from('lms_classes')
+            .select('id, name')
+            .in('id', classIds)
+        : { data: [] }
+
+      const classNameMap: Record<string, string> = {}
+      ;(classes ?? []).forEach(c => { classNameMap[c.id] = c.name })
+
+      const enrollmentsByStudent: Record<string, { classId: string; className: string; enrolledAt: string; demoExpiresAt: string | null }[]> = {}
+      ;(enrollments ?? []).forEach(e => {
+        if (!enrollmentsByStudent[e.student_id]) enrollmentsByStudent[e.student_id] = []
+        enrollmentsByStudent[e.student_id]!.push({
+          classId: e.class_id,
+          className: classNameMap[e.class_id] ?? '',
+          enrolledAt: e.enrolled_at,
+          demoExpiresAt: e.demo_expires_at ?? null,
+        })
+      })
+
       return res.status(200).json({
         students: (data ?? []).map(s => ({
           id: s.id,
@@ -682,6 +749,7 @@ lmsAdminRouter.get('/admin/students', authenticateRequest, requireRole('admin'),
           email: s.email ?? '',
           phone: s.phone ?? '',
           registeredAt: s.created_at,
+          enrollments: enrollmentsByStudent[s.id] ?? [],
         })),
       })
     } catch (err) { return next(err) }
@@ -728,6 +796,7 @@ lmsAdminRouter.patch('/admin/students/:id/demo-override', authenticateRequest, r
         .from('lms_enrollments')
         .update({ demo_expires_at: demoExpiresAt })
         .eq('student_id', studentId)
+        .not('demo_expires_at', 'is', null)
 
       return res.status(200).json({
         override: { studentId, demoExpiresAt, overriddenByAdminId: adminId, overriddenAt: new Date().toISOString() },
@@ -891,44 +960,112 @@ lmsAdminRouter.delete('/chat/messages/:messageId', authenticateRequest, requireR
   }
 )
 
+// ─── GET /api/v1/admin/orders ────────────────────────────────────────────────
+lmsAdminRouter.get('/admin/orders', authenticateRequest, requireRole('admin'),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { data, error } = await supabaseServiceClient
+        .from('lms_orders')
+        .select('*, profiles!lms_orders_student_id_fkey(full_name, email), lms_products!lms_orders_product_id_fkey(name)')
+        .order('created_at', { ascending: false })
+        .limit(200)
+
+      if (error) throw new HttpError(500, 'FETCH_FAILED', error.message)
+
+      const result = (data ?? []).map(o => ({
+        id: o.id,
+        studentId: o.student_id,
+        studentName: (o.profiles as any)?.full_name ?? '',
+        studentEmail: (o.profiles as any)?.email ?? '',
+        productId: o.product_id,
+        productName: (o.lms_products as any)?.name ?? '',
+        plan: o.plan,
+        amountPaid: Number(o.amount_paid),
+        couponId: o.coupon_id ?? null,
+        status: o.status,
+        stripePaymentIntentId: o.stripe_payment_intent_id ?? null,
+        paidAt: o.paid_at ?? null,
+        createdAt: o.created_at,
+      }))
+
+      return res.status(200).json({ orders: result })
+    } catch (err) { return next(err) }
+  }
+)
+
 // ─── POST /api/v1/admin/orders/:orderId/refund ───────────────────────────────
 lmsAdminRouter.post('/admin/orders/:orderId/refund', authenticateRequest, requireRole('admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { data: order } = await supabaseServiceClient
         .from('lms_orders')
-        .select('id, status, student_id, product_id, stripe_payment_intent_id')
+        .select('id, status, student_id, product_id, class_id, stripe_payment_intent_id, stripe_subscription_id')
         .eq('id', req.params.orderId)
         .single()
 
       if (!order) throw new HttpError(404, 'NOT_FOUND', 'Order not found.')
       if (order.status !== 'paid') throw new HttpError(400, 'NOT_PAID', 'Only paid orders can be refunded.')
 
+      // Upfront order — refund the payment intent, ignore if already refunded via Stripe dashboard
       if (order.stripe_payment_intent_id) {
-        await stripe.refunds.create({ payment_intent: order.stripe_payment_intent_id })
+        try {
+          await stripe.refunds.create({ payment_intent: order.stripe_payment_intent_id })
+        } catch (err: any) {
+          const alreadyRefunded = err?.raw?.code === 'charge_already_refunded' || err?.code === 'charge_already_refunded'
+          if (!alreadyRefunded) throw err
+        }
+      }
+
+      // Installment order — cancel subscription + refund ALL paid invoices
+      if (order.stripe_subscription_id) {
+        try {
+          const subscription = await stripe.subscriptions.retrieve(order.stripe_subscription_id)
+          if (subscription.status !== 'canceled') {
+            await stripe.subscriptions.cancel(order.stripe_subscription_id)
+          }
+        } catch { /* already cancelled — continue */ }
+
+        const invoices = await stripe.invoices.list({ subscription: order.stripe_subscription_id, limit: 100 })
+        for (const inv of invoices.data) {
+          const typedInv = inv as typeof inv & { payment_intent?: string | null; status?: string }
+          if (typedInv.status === 'paid' && typedInv.payment_intent && typeof typedInv.payment_intent === 'string') {
+            try {
+              await stripe.refunds.create({ payment_intent: typedInv.payment_intent })
+            } catch { /* already refunded — skip */ }
+          }
+        }
       }
 
       await supabaseServiceClient
         .from('lms_orders').update({ status: 'refunded' }).eq('id', req.params.orderId)
 
-      // Find and revoke enrollment
-      const { data: cls } = await supabaseServiceClient
-        .from('lms_classes').select('id').eq('product_id', order.product_id).limit(1).single()
-
-      if (cls) {
+      // Remove the enrollment created by this payment
+      if (order.class_id) {
         await supabaseServiceClient
           .from('lms_enrollments')
-          .update({ demo_expires_at: new Date().toISOString() })
+          .delete()
           .eq('student_id', order.student_id)
-          .eq('class_id', cls.id)
+          .eq('class_id', order.class_id)
+      } else {
+        // Fallback for orders without class_id: remove paid enrollments across all product classes
+        const { data: productClasses } = await supabaseServiceClient
+          .from('lms_classes').select('id').eq('product_id', order.product_id)
+        if (productClasses && productClasses.length > 0) {
+          await supabaseServiceClient
+            .from('lms_enrollments')
+            .delete()
+            .eq('student_id', order.student_id)
+            .in('class_id', productClasses.map(c => c.id))
+            .is('demo_expires_at', null)
+        }
       }
 
       await notifyStudent({
         studentId: order.student_id,
         type: 'enrollment_confirmed',
         title: 'Refund Processed',
-        body: 'Your refund has been issued. Class access has been removed.',
-        classId: cls?.id,
+        body: 'Your refund has been issued. Your class access has been removed.',
+        classId: order.class_id ?? undefined,
       })
 
       return res.status(200).json({ message: 'Refund processed. Student access revoked.' })

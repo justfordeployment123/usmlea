@@ -262,3 +262,29 @@ export interface EnrollStudentPayload {
   studentEmail: string
   demoExpiresAt: string | null  // null = full access
 }
+
+export interface LmsOrder {
+  id: string
+  studentId: string
+  studentName: string
+  studentEmail: string
+  productId: string
+  productName: string
+  plan: 'upfront' | 'installment'
+  amountPaid: number
+  couponId: string | null
+  status: 'pending' | 'paid' | 'refunded'
+  stripePaymentIntentId: string | null
+  paidAt: string | null
+  createdAt: string
+}
+
+export interface TeacherStudentSummary {
+  studentId: string
+  studentName: string
+  studentEmail: string
+  enrolledAt: string
+  accessType: 'full' | 'demo_active' | 'demo_expired'
+  attendedCount: number
+  totalSessions: number
+}
