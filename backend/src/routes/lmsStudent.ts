@@ -267,7 +267,7 @@ lmsStudentRouter.get('/student/classes/:classId/attendance', authenticateRequest
         .from('lms_sessions')
         .select('id, scheduled_at, duration_minutes, status')
         .eq('class_id', req.params.classId)
-        .neq('status', 'cancelled')
+        .in('status', ['completed', 'cancelled'])
         .lte('scheduled_at', now)
         .order('scheduled_at', { ascending: true })
 
@@ -286,13 +286,12 @@ lmsStudentRouter.get('/student/classes/:classId/attendance', authenticateRequest
       const recordBySession: Record<string, string> = {}
       ;(records ?? []).forEach(r => { recordBySession[r.session_id] = r.status })
 
-      // All past sessions — absent if no record exists
       const result = (classSessions ?? []).map(s => ({
         sessionId: s.id,
         classId: req.params.classId,
         scheduledAt: s.scheduled_at,
         durationMinutes: s.duration_minutes,
-        status: recordBySession[s.id] ?? 'absent',
+        status: s.status === 'cancelled' ? 'cancelled' : (recordBySession[s.id] ?? 'missed'),
       }))
 
       return res.status(200).json({ records: result })
